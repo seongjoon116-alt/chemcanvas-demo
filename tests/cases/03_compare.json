@@ -1,0 +1,21 @@
+{
+  "name": "분자 비교 — 아스피린 vs 이부프로펜",
+  "input": "아스피린이랑 이부프로펜 구조 비교해줘",
+  "expected": {
+    "moleculeCount": 2,
+    "minAtomCount": 20
+  },
+  "checks": [
+    "scenario_not_null",
+    "molecule_count",
+    "min_atom_count",
+    "atom_ids_valid",
+    "bond_ids_valid",
+    "step_types_valid",
+    "step_targets_valid",
+    "positions_in_range",
+    "molecules_separated",
+    "has_steps",
+    "chat_message_korean"
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "복잡한 분자 검사 — 아스피린 (21원자)",
+  "input": "아스피린 구조 보여줘",
+  "expected": {
+    "moleculeCount": 1,
+    "minAtomCount": 10
+  },
+  "checks": [
+    "scenario_not_null",
+    "molecule_count",
+    "min_atom_count",
+    "atom_ids_valid",
+    "bond_ids_valid",
+    "step_types_valid",
+    "step_targets_valid",
+    "positions_in_range",
+    "has_steps",
+    "chat_message_korean"
+  ]
+}

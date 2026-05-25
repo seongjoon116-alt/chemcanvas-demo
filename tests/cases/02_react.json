@@ -1,0 +1,21 @@
+{
+  "name": "화학 반응 — 에틸렌 + HBr 첨가반응",
+  "input": "에틸렌에 HBr 첨가반응 보여줘",
+  "expected": {
+    "minMoleculeCount": 2,
+    "minAtomCount": 4,
+    "minStepCount": 2
+  },
+  "checks": [
+    "scenario_not_null",
+    "min_molecule_count",
+    "min_atom_count",
+    "atom_ids_valid",
+    "bond_ids_valid",
+    "step_types_valid",
+    "step_targets_valid",
+    "has_steps",
+    "min_step_count",
+    "chat_message_korean"
+  ]
+}

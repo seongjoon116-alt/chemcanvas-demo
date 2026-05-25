@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChemCanvas AI Demo - Startup Pitch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Pretendard', sans-serif; background-color: #f8f9fa; color: #333333; height: 100vh; display: flex; overflow: hidden; }
+        #app-container { display: flex; width: 100%; height: 100%; }
+        
+        /* Left Pane: 3D Viewer */
+        #viewer-pane { flex: 7; position: relative; background: radial-gradient(circle at center, #ffffff 0%, #f1f3f5 100%); }
+        #canvas-3d { width: 100%; height: 100%; display: block; cursor: grab; }
+        #canvas-3d:active { cursor: grabbing; }
+        
+        /* Glassmorphism utility */
+        .glass { background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(0, 0, 0, 0.05); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.03); }
+        
+        /* Overlays in Viewer */
+        .header-overlay { position: absolute; top: 20px; left: 20px; }
+        .header-overlay h1 { font-size: 1.5rem; font-weight: 600; color: #212529; margin-bottom: 4px; }
+        .header-overlay p { font-size: 0.9rem; color: #495057; }
+
+        .legend { position: absolute; bottom: 20px; left: 20px; padding: 15px 20px; border-radius: 12px; display: flex; gap: 20px; font-size: 0.85rem; color: #495057; }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; box-shadow: inset 0 0 4px rgba(0,0,0,0.2); }
+        .dot.c { background: #222222; }
+        .dot.cl { background: #00d82c; }
+        .dot.br { background: #ff00ff; }
+        .dot.ch3 { background: #00d2ff; }
+        .dot.h { background: #ffffff; border: 1px solid #ced4da; }
+        
+        .result-badge { position: absolute; top: 20px; right: 20px; padding: 15px 25px; border-radius: 12px; border: 1px solid rgba(255, 0, 255, 0.4); background: rgba(255, 0, 255, 0.05); text-align: center; transition: opacity 0.5s; opacity: 0; pointer-events: none; }
+        .result-badge.visible { opacity: 1; }
+        .badge-label { display: block; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #495057; margin-bottom: 5px; }
+        .badge-value { display: block; font-size: 1.8rem; font-weight: 600; color: #ff00ff; }
+
+        /* Right Pane: AI Chat UI */
+        #chat-pane { flex: 3; min-width: 380px; max-width: 450px; display: flex; flex-direction: column; background: #ffffff; border-left: 1px solid #e9ecef; z-index: 10; box-shadow: -5px 0 20px rgba(0,0,0,0.03); }
+        
+        .chat-header { padding: 20px; border-bottom: 1px solid #e9ecef; display: flex; align-items: center; gap: 10px; }
+        .chat-header .status-dot { width: 10px; height: 10px; background: #339af0; border-radius: 50%; box-shadow: 0 0 10px rgba(51, 154, 240, 0.5); }
+        .chat-header h2 { font-size: 1.1rem; font-weight: 600; color: #212529; }
+        
+        .chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+        .message { max-width: 85%; padding: 14px 18px; border-radius: 14px; font-size: 0.95rem; line-height: 1.5; word-break: keep-all; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .message.ai { background: #f1f8ff; border: 1px solid #d0ebff; align-self: flex-start; border-bottom-left-radius: 4px; color: #212529; }
+        .message.user { background: #f8f9fa; border: 1px solid #e9ecef; align-self: flex-end; border-bottom-right-radius: 4px; color: #212529; }
+        .message .icon { font-size: 1.2rem; margin-bottom: 5px; display: block; }
+
+        .chat-suggestions { padding: 15px 20px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #e9ecef; }
+        .suggest-label { font-size: 0.8rem; color: #868e96; margin-bottom: 5px; }
+        .suggest-btn { background: #ffffff; border: 1px solid #dee2e6; color: #495057; padding: 12px 15px; border-radius: 10px; cursor: pointer; text-align: left; font-size: 0.9rem; transition: all 0.2s; display: flex; align-items: center; gap: 10px; }
+        .suggest-btn:hover { background: #f1f8ff; border-color: #339af0; color: #212529; transform: translateY(-1px); box-shadow: 0 2px 5px rgba(51,154,240,0.1); }
+        .suggest-btn span { color: #339af0; font-weight: bold; }
+
+        .chat-input-area { padding: 20px; display: flex; gap: 10px; border-top: 1px solid #e9ecef; background: #f8f9fa; }
+        .chat-input-area input { flex: 1; background: #ffffff; border: 1px solid #ced4da; padding: 14px; border-radius: 10px; color: #495057; font-size: 0.95rem; outline: none; transition: border-color 0.2s; }
+        .chat-input-area input:focus { border-color: #339af0; }
+        .chat-input-area button { background: #339af0; color: white; border: none; padding: 0 20px; border-radius: 10px; font-weight: 600; cursor: not-allowed; opacity: 0.5; }
+        
+        /* Typo animation for AI */
+        .typing-indicator { display: flex; gap: 4px; padding: 10px 0; }
+        .typing-dot { width: 6px; height: 6px; background: #339af0; border-radius: 50%; animation: typing 1.4s infinite ease-in-out; }
+        .typing-dot:nth-child(1) { animation-delay: 0s; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typing { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(-4px); opacity: 1; } }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <!-- Left: 3D Viewer Pane -->
+        <div id="viewer-pane">
+            <canvas id="canvas-3d"></canvas>
+            
+            <div class="header-overlay">
+                <h1>ChemCanvas AI</h1>
+                <p>Reaction Sandbox: (R)-3-chloro-1-butene + HBr</p>
+            </div>
+
+            <div class="legend glass">
+                <div class="legend-item"><span class="dot c"></span> 탄소 (C)</div>
+                <div class="legend-item"><span class="dot cl"></span> 염소 (Cl)</div>
+                <div class="legend-item"><span class="dot ch3"></span> 메틸기 (CH₃)</div>
+                <div class="legend-item"><span class="dot h"></span> 수소 (H)</div>
+                <div class="legend-item"><span class="dot br"></span> 브로민 이온 (Br⁻)</div>
+            </div>
+
+            <div class="result-badge glass" id="result-badge">
+                <span class="badge-label">생성물 입체 구조</span>
+                <span class="badge-value">(2R, 3R)</span>
+            </div>
+        </div>
+        
+        <!-- Right: AI Chat Pane -->
+        <div id="chat-pane" class="glass">
+            <div class="chat-header">
+                <div class="status-dot"></div>
+                <h2>ChemCanvas AI 튜터</h2>
+            </div>
+            
+            <div class="chat-messages" id="chat-messages">
+                <div class="message ai">
+                    <span class="icon">👋</span>
+                    안녕하세요! MCP 기반 유기화학 3D 튜터입니다.<br><br>현재 화면에 <b>(R)-3-chloro-1-butene</b>에서 H+가 첨가되어 생성된 <b>2번 탄소 카보양이온 중간체</b>가 렌더링되어 있습니다. (데이터 출처: PubChem)<br><br>어떤 시뮬레이션을 진행할까요? 마우스로 분자를 직접 돌려보실 수도 있습니다.
+                </div>
+            </div>
+            
+            <div class="chat-suggestions">
+                <div class="suggest-label">시연용 프롬프트 선택:</div>
+                <button class="suggest-btn" id="btn-demo-1"><span>💬</span> 뉴먼 투영도 각도로 돌려서 입체 장애 보여줘</button>
+                <button class="suggest-btn" id="btn-demo-2"><span>💬</span> 입체 장애가 적은 쪽으로 Br- 공격 시뮬레이션 해</button>
+                <button class="suggest-btn" id="btn-demo-3"><span>🔄</span> 초기 상태로 되돌려줘</button>
+            </div>
+            
+            <div class="chat-input-area">
+                <input type="text" placeholder="자연어로 명령해 보세요 (시연용 데모)" disabled>
+                <button disabled>전송</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js Import -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+        /* --- 3D Scene Setup --- */
+        const ATOM_RADII = { H: 0.3, C: 0.6, Cl: 0.9, Br: 1.0, CH3: 0.9 };
+        const COLORS = { C: 0x222222, H: 0xffffff, Cl: 0x00d82c, Br: 0xff00ff, CH3: 0x00d2ff, P_ORBITAL: 0x339af0, BOND: 0xaaaaaa };
+
+        let scene, camera, renderer, controls;
+        let molecule = new THREE.Group();
+        let pOrbitalGroup = new THREE.Group();
+        let brIon;
+        let atoms = {};
+        let dynamicBonds = [];
+        let isNewmanView = false;
+        let animationStep = 0;
+
+        function init3D() {
+            const canvas = document.getElementById('canvas-3d');
+            const pane = document.getElementById('viewer-pane');
+            
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(60, pane.clientWidth / pane.clientHeight, 0.1, 1000);
+            camera.position.set(6, 4, 8);
+            
+            renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, alpha: true });
+            renderer.setSize(pane.clientWidth, pane.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            
+            // Lighting
+            scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+            scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.5));
+            
+            const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            mainLight.position.set(10, 15, 10);
+            mainLight.castShadow = true;
+            mainLight.shadow.mapSize.width = 2048;
+            mainLight.shadow.mapSize.height = 2048;
+            mainLight.shadow.bias = -0.001;
+            scene.add(mainLight);
+            
+            const backLight = new THREE.PointLight(0x339af0, 0.8);
+            backLight.position.set(-10, -10, -10);
+            scene.add(backLight);
+
+            createMolecule();
+            createBrIon();
+            scene.add(molecule);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = pane.clientWidth / pane.clientHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(pane.clientWidth, pane.clientHeight);
+            });
+
+            animate3D();
+        }
+
+        function createAtom(type, pos, label) {
+            const geo = new THREE.SphereGeometry(ATOM_RADII[type], 64, 64);
+            const mat = new THREE.MeshLambertMaterial({ color: COLORS[type] });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.copy(pos);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            molecule.add(mesh);
+            atoms[label] = mesh;
+            return mesh;
+        }
+
+        function createBond(p1, p2) {
+            const dir = new THREE.Vector3().subVectors(p2, p1);
+            const geo = new THREE.CylinderGeometry(0.12, 0.12, 1.0, 32);
+            const mat = new THREE.MeshLambertMaterial({ color: COLORS.BOND });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.scale.y = dir.length();
+            mesh.position.copy(p1).add(dir.clone().multiplyScalar(0.5));
+            mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            molecule.add(mesh);
+            return mesh;
+        }
+
+        function createPOrbital(pos) {
+            // Base sphere radius 0.6
+            const geo = new THREE.SphereGeometry(0.6, 32, 32);
+            // Scale Y by 2.0 -> Y-radius becomes 1.2
+            geo.scale(1.0, 2.0, 1.0);
+            
+            const mat = new THREE.MeshLambertMaterial({ 
+                color: COLORS.P_ORBITAL, 
+                transparent: true, 
+                opacity: 0.4, 
+                emissive: COLORS.P_ORBITAL, 
+                emissiveIntensity: 0.5 
+            });
+            
+            // Position exactly at +/- 1.2 so they meet at the center (dumbbell shape)
+            const lobe1 = new THREE.Mesh(geo, mat); 
+            lobe1.position.set(pos.x, pos.y + 1.2, pos.z);
+            
+            const lobe2 = new THREE.Mesh(geo, mat); 
+            lobe2.position.set(pos.x, pos.y - 1.2, pos.z);
+            
+            pOrbitalGroup.add(lobe1); 
+            pOrbitalGroup.add(lobe2);
+            molecule.add(pOrbitalGroup);
+        }
+
+        function createMolecule() {
+            // C3 (Back Carbon)
+            const c3Pos = new THREE.Vector3(0, 0, -1.5);
+            createAtom('C', c3Pos, 'C3');
+            createAtom('Cl', new THREE.Vector3(1.5, 0.5, -2.5), 'C3_Cl'); // Right-top
+            createAtom('H', new THREE.Vector3(-1.2, 0.8, -2.5), 'C3_H');  // Left-top
+            createAtom('CH3', new THREE.Vector3(0, -1.8, -2.5), 'C3_Me'); // Bottom
+            createBond(c3Pos, atoms.C3_Cl.position);
+            createBond(c3Pos, atoms.C3_H.position);
+            createBond(c3Pos, atoms.C3_Me.position);
+
+            // C2 (Front Carbon)
+            const c2Pos = new THREE.Vector3(0, 0, 1.5);
+            createAtom('C', c2Pos, 'C2');
+            createBond(c2Pos, c3Pos);
+            
+            // C2 Substituents
+            createAtom('CH3', new THREE.Vector3(1.56, 0, 2.4), 'C2_Me'); // Right, 120 degrees
+            createAtom('H', new THREE.Vector3(-1.56, 0, 2.4), 'C2_H');   // Left, 120 degrees
+            const bondMe = createBond(c2Pos, atoms.C2_Me.position);
+            dynamicBonds.push({ mesh: bondMe, p1: atoms.C2.position, p2Obj: atoms.C2_Me });
+            
+            const bondH = createBond(c2Pos, atoms.C2_H.position);
+            dynamicBonds.push({ mesh: bondH, p1: atoms.C2.position, p2Obj: atoms.C2_H });
+
+            createPOrbital(c2Pos);
+        }
+
+        function createBrIon() {
+            const geo = new THREE.SphereGeometry(ATOM_RADII.Br, 64, 64);
+            const mat = new THREE.MeshLambertMaterial({ color: COLORS.Br, emissive: COLORS.Br, emissiveIntensity: 0.2 });
+            brIon = new THREE.Mesh(geo, mat);
+            brIon.visible = false;
+            brIon.castShadow = true;
+            brIon.receiveShadow = true;
+            molecule.add(brIon); 
+        }
+
+        function animate3D() {
+            requestAnimationFrame(animate3D);
+            controls.update();
+            if (!isNewmanView && animationStep === 0) {
+                molecule.rotation.y = Math.sin(Date.now() * 0.001) * 0.2; // Gentle hover effect
+            }
+            
+            // Dynamically update bonds during animation
+            dynamicBonds.forEach(b => {
+                const p1 = b.p1;
+                const p2 = b.p2Obj.position;
+                const dir = new THREE.Vector3().subVectors(p2, p1);
+                const len = dir.length(); // Calculate length before normalizing!
+                b.mesh.position.copy(p1).add(dir.clone().multiplyScalar(0.5));
+                b.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+                b.mesh.scale.y = len; 
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        /* --- AI Chat Logic & API Bindings --- */
+        const messagesContainer = document.getElementById('chat-messages');
+
+        function addMessage(text, sender) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${sender}`;
+            msgDiv.innerHTML = text;
+            messagesContainer.appendChild(msgDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function showTyping() {
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'message ai typing-indicator-container';
+            typingDiv.id = 'typing';
+            typingDiv.innerHTML = `<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+            messagesContainer.appendChild(typingDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function removeTyping() {
+            const typingDiv = document.getElementById('typing');
+            if (typingDiv) typingDiv.remove();
+        }
+
+        // Demo Actions
+        document.getElementById('btn-demo-1').addEventListener('click', () => {
+            addMessage("뉴먼 투영도 각도로 돌려서 입체 장애 보여줘", "user");
+            showTyping();
+            
+            setTimeout(() => {
+                removeTyping();
+                addMessage("네, C2-C3 결합축을 따라 정면에서 바라보는 <b>뉴먼 투영도(Newman Projection)</b> 시점으로 카메라를 자동 회전합니다.<br><br>👀 뒤쪽 탄소(C3)의 <b>거대한 초록색 염소(Cl) 원자</b>가 오른쪽 공간을 막고 있는 것이 보이시나요?", "ai");
+                
+                isNewmanView = true;
+                gsap.to(camera.position, { x: 0, y: 0, z: 10, duration: 1.5, ease: "power2.inOut", onUpdate: () => camera.lookAt(0, 0, 0) });
+                gsap.to(molecule.rotation, { x: 0, y: 0, z: 0, duration: 1.5, ease: "power2.inOut" });
+            }, 1200);
+        });
+
+        document.getElementById('btn-demo-2').addEventListener('click', () => {
+            if(animationStep > 0) return;
+            addMessage("입체 장애가 적은 쪽으로 Br- 공격 시뮬레이션 해", "user");
+            showTyping();
+            
+            setTimeout(() => {
+                removeTyping();
+                addMessage("염소(Cl)가 막고 있는 오른쪽 대신, <b>상대적으로 덜 붐비는 수소(H) 쪽(왼쪽 상단)</b>에서 빈 p-오비탈을 향해 Br- 이온이 접근하는 시뮬레이션을 생성했습니다.<br><br>결합이 형성되며 기존 치환기들이 우산처럼 뒤집혀 <b>(2R, 3R)</b> 주생성물(정사면체)이 만들어집니다.", "ai");
+                
+                animationStep = 1;
+                brIon.visible = true;
+                brIon.position.set(-4, 6, 1.5);
+                
+                const tl = gsap.timeline({ onComplete: () => {
+                    document.getElementById('result-badge').classList.add('visible');
+                    animationStep = 2;
+                }});
+                
+                // 1. Approach from top-left
+                tl.to(brIon.position, { x: -1.5, y: 3.0, z: 1.5, duration: 1.5, ease: "power1.inOut" });
+                
+                // 2. Attack Label for simultaneous animation
+                tl.addLabel("attack");
+                
+                // 3. Create Bond right as it plunges
+                tl.add(() => {
+                    const bondBr = createBond(atoms.C2.position, brIon.position);
+                    dynamicBonds.push({ mesh: bondBr, p1: atoms.C2.position, p2Obj: brIon, isBr: true });
+                }, "attack");
+                
+                // 4. Simultaneous plunge and umbrella inversion
+                tl.to(brIon.position, { x: 0, y: 1.697, z: 2.1, duration: 1.0, ease: "power2.inOut" }, "attack");
+                tl.to(pOrbitalGroup.scale, { x: 0, y: 0, z: 0, duration: 0.5 }, "attack");
+                tl.to(atoms.C2_Me.position, { x: 1.47, y: -0.85, z: 2.1, duration: 1.0, ease: "power2.inOut" }, "attack");
+                tl.to(atoms.C2_H.position, { x: -1.47, y: -0.85, z: 2.1, duration: 1.0, ease: "power2.inOut" }, "attack");
+            }, 1500);
+        });
+
+        document.getElementById('btn-demo-3').addEventListener('click', () => {
+            addMessage("초기 상태로 되돌려줘", "user");
+            showTyping();
+            
+            setTimeout(() => {
+                removeTyping();
+                addMessage("반응 전의 <b>카보양이온 중간체</b> 상태로 초기화했습니다. 마우스로 드래그하여 분자를 자유롭게 관찰해 보세요.", "ai");
+                
+                animationStep = 0;
+                isNewmanView = false;
+                brIon.visible = false;
+                pOrbitalGroup.scale.set(1, 1, 1);
+                
+                // Remove Br bond
+                dynamicBonds = dynamicBonds.filter(b => {
+                    if (b.isBr) {
+                        molecule.remove(b.mesh);
+                        return false;
+                    }
+                    return true;
+                });
+                
+                atoms.C2_Me.position.set(1.56, 0, 2.4);
+                atoms.C2_H.position.set(-1.56, 0, 2.4);
+                document.getElementById('result-badge').classList.remove('visible');
+                
+                gsap.to(camera.position, { x: 6, y: 4, z: 8, duration: 1.5, ease: "power2.inOut", onUpdate: () => camera.lookAt(0, 0, 0) });
+            }, 800);
+        });
+
+        // Initialize
+        init3D();
+    </script>
+</body>
+</html>

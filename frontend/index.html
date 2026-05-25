@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChemCanvas AI</title>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Pretendard', sans-serif; background: #f8f9fa; color: #333; height: 100vh; display: flex; overflow: hidden; }
+    #app-container { display: flex; width: 100%; height: 100%; }
+
+    /* ── Session Sidebar ── */
+    #log-sidebar {
+      width: 220px; flex-shrink: 0;
+      background: #16213e;
+      display: flex; flex-direction: column;
+      border-right: 1px solid rgba(255,255,255,0.05);
+    }
+    .sidebar-brand {
+      padding: 16px 14px 12px;
+      display: flex; align-items: center; gap: 9px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+    .brand-icon {
+      width: 30px; height: 30px; border-radius: 8px;
+      background: linear-gradient(135deg, #339af0 30%, #cc5de8);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; flex-shrink: 0;
+    }
+    .brand-name { font-size: 0.92rem; font-weight: 600; color: #e4e8ef; }
+    #btn-new-session {
+      margin: 10px 10px 4px;
+      padding: 9px 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px dashed rgba(255,255,255,0.16);
+      border-radius: 8px; color: rgba(255,255,255,0.55);
+      cursor: pointer; font-size: 0.8rem;
+      text-align: left; display: flex; align-items: center; gap: 7px;
+      transition: all 0.18s; font-family: inherit;
+    }
+    #btn-new-session:hover { background: rgba(255,255,255,0.1); color: #fff; }
+    #session-list { flex: 1; overflow-y: auto; padding: 8px; }
+    .session-info {
+      padding: 10px; border-radius: 8px;
+      background: rgba(51,154,240,0.1); border: 1px solid rgba(51,154,240,0.2);
+      color: rgba(255,255,255,0.6); font-size: 0.75rem; line-height: 1.5;
+    }
+
+    /* ── 3D Viewer ── */
+    #viewer-pane {
+      flex: 1; min-width: 0; position: relative;
+      background: radial-gradient(circle at 40% 40%, #ffffff 0%, #edf2f7 100%);
+      overflow: hidden;
+    }
+    #canvas-3d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+    #canvas-3d:active { cursor: grabbing; }
+
+    .glass {
+      background: rgba(255,255,255,0.75);
+      backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(0,0,0,0.07);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+    }
+    .header-overlay { position: absolute; top: 20px; left: 20px; }
+    .header-overlay h1 { font-size: 1.35rem; font-weight: 600; color: #212529; margin-bottom: 2px; }
+    .header-overlay p { font-size: 0.82rem; color: #868e96; }
+
+    .legend {
+      position: absolute; bottom: 18px; left: 18px;
+      padding: 11px 15px; border-radius: 12px;
+      display: flex; gap: 14px; flex-wrap: wrap;
+      font-size: 0.78rem; color: #495057; max-width: 460px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot.c   { background: #222; }
+    .dot.cl  { background: #00d82c; }
+    .dot.br  { background: #ff00ff; }
+    .dot.ch3 { background: #00d2ff; }
+    .dot.h   { background: #fff; border: 1px solid #ced4da; }
+    .dot.o   { background: #ff4136; }
+    .dot.n   { background: #3050f8; }
+
+    .result-badge {
+      position: absolute; top: 20px; right: 20px;
+      padding: 13px 20px; border-radius: 12px;
+      border: 1px solid rgba(255,0,255,0.35);
+      background: rgba(255,0,255,0.04);
+      text-align: center; transition: opacity 0.5s;
+      opacity: 0; pointer-events: none;
+    }
+    .result-badge.visible { opacity: 1; }
+    .badge-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #868e96; margin-bottom: 4px; }
+    .badge-value { display: block; font-size: 1.65rem; font-weight: 600; color: #ff00ff; }
+
+    /* Atom Tooltip */
+    #atom-tooltip {
+      position: fixed; z-index: 600;
+      padding: 11px 14px; border-radius: 10px;
+      min-width: 185px; max-width: 260px;
+      pointer-events: none; display: none;
+    }
+    #atom-tooltip.visible { display: block; }
+    .tt-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+    .tt-symbol {
+      font-size: 1.2rem; font-weight: 700; color: #fff;
+      width: 40px; height: 40px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .tt-el-name { font-size: 0.88rem; font-weight: 600; color: #212529; }
+    .tt-mass    { font-size: 0.74rem; color: #868e96; }
+    .tt-divider { height: 1px; background: rgba(0,0,0,0.07); margin: 7px 0; }
+    .tt-row { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #555; padding: 1px 0; }
+    .tt-lbl { font-size: 0.69rem; text-transform: uppercase; letter-spacing: 0.4px; color: #aaa; min-width: 36px; }
+    .bond-chip {
+      background: #f1f3f5; border-radius: 4px; padding: 2px 7px;
+      font-size: 0.71rem; color: #555; white-space: nowrap; margin-bottom: 3px;
+    }
+    .bond-chip.single { border-left: 2px solid #ced4da; }
+    .bond-chip.double { border-left: 3px solid #339af0; }
+    .bond-chip.triple { border-left: 4px solid #7950f2; }
+    .bond-list { display: flex; flex-direction: column; gap: 2px; }
+
+    /* ── Chat Pane ── */
+    #chat-pane {
+      width: 370px; flex-shrink: 0;
+      display: flex; flex-direction: column;
+      background: #fff; border-left: 1px solid #e9ecef;
+      box-shadow: -4px 0 18px rgba(0,0,0,0.03);
+    }
+    .chat-header { padding: 16px 18px 14px; border-bottom: 1px solid #e9ecef; }
+    .chat-header-top { display: flex; align-items: center; gap: 9px; }
+    .status-dot { width: 9px; height: 9px; background: #339af0; border-radius: 50%; box-shadow: 0 0 7px rgba(51,154,240,0.5); }
+    .chat-header h2 { font-size: 0.97rem; font-weight: 600; color: #212529; }
+    .chat-header-sub { font-size: 0.72rem; color: #adb5bd; margin-top: 4px; }
+
+    .chat-messages { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+    .chat-messages::-webkit-scrollbar { width: 4px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 2px; }
+    .message {
+      max-width: 88%; padding: 11px 14px; border-radius: 13px;
+      font-size: 0.87rem; line-height: 1.55; word-break: keep-all;
+    }
+    .message.ai   { background: #f1f8ff; border: 1px solid #d0ebff; align-self: flex-start; border-bottom-left-radius: 3px;  color: #212529; }
+    .message.user { background: #f8f9fa; border: 1px solid #e9ecef; align-self: flex-end;   border-bottom-right-radius: 3px; color: #212529; }
+
+    .chat-input-area {
+      padding: 12px 14px; display: flex; gap: 8px;
+      border-top: 1px solid #e9ecef; background: #f8f9fa;
+    }
+    .chat-input-area input {
+      flex: 1; background: #fff; border: 1px solid #ced4da;
+      padding: 10px 13px; border-radius: 9px; color: #495057;
+      font-size: 0.85rem; outline: none; transition: border-color 0.2s; font-family: inherit;
+    }
+    .chat-input-area input:focus { border-color: #339af0; }
+    .chat-input-area button {
+      background: #339af0; color: #fff; border: none;
+      padding: 0 16px; border-radius: 9px; font-weight: 600;
+      cursor: pointer; font-family: inherit; font-size: 0.85rem; transition: background 0.18s;
+    }
+    .chat-input-area button:hover:not(:disabled) { background: #228be6; }
+    .chat-input-area button:disabled, .chat-input-area input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── CoT (Chain-of-Thought) 패널 ── */
+    .cot-message {
+      background: #f8f9fa !important;
+      border: 1px solid #dee2e6 !important;
+      padding: 10px 13px !important;
+    }
+    .cot-header {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.8rem; font-weight: 600; color: #495057; margin-bottom: 6px;
+    }
+    .cot-spinner {
+      width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0;
+      border: 2px solid #dee2e6; border-top-color: #339af0;
+      animation: cot-spin 0.75s linear infinite;
+    }
+    @keyframes cot-spin { to { transform: rotate(360deg); } }
+    .cot-steps { display: flex; flex-direction: column; gap: 3px; }
+    .cot-step {
+      font-size: 0.76rem; color: #adb5bd;
+      padding: 2px 0 2px 18px; position: relative;
+    }
+    .cot-step::before {
+      position: absolute; left: 0; font-size: 0.75rem;
+    }
+    .cot-step.active { color: #339af0; }
+    .cot-step.active::before { content: '⟳'; }
+    .cot-step.done   { color: #40c057; }
+    .cot-step.done::before   { content: '✓'; }
+    .cot-collapsed {
+      font-size: 0.77rem; color: #868e96;
+      padding-left: 18px; position: relative;
+    }
+    .cot-collapsed::before { content: '✓'; position: absolute; left: 0; color: #40c057; font-weight: 700; }
+
+    /* ── 서버 로그 패널 (사이드바 하단) ── */
+    #log-panel {
+      border-top: 1px solid rgba(255,255,255,0.07);
+      display: flex; flex-direction: column; max-height: 210px; flex-shrink: 0;
+    }
+    .log-panel-header {
+      padding: 7px 12px; display: flex; align-items: center;
+      justify-content: space-between; flex-shrink: 0;
+    }
+    .log-panel-title { font-size: 0.68rem; font-weight: 600; letter-spacing: 0.6px; color: rgba(255,255,255,0.3); text-transform: uppercase; }
+    .log-count-badge {
+      font-size: 0.62rem; background: rgba(255,255,255,0.08);
+      color: rgba(255,255,255,0.35); padding: 1px 6px; border-radius: 8px;
+    }
+    #log-entries {
+      flex: 1; overflow-y: auto; padding: 2px 8px 8px;
+      display: flex; flex-direction: column; gap: 1px;
+    }
+    #log-entries::-webkit-scrollbar { width: 3px; }
+    #log-entries::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+    .log-entry {
+      font-size: 0.66rem; line-height: 1.45; padding: 1px 5px; border-radius: 3px;
+      font-family: 'Courier New', monospace; word-break: break-all;
+    }
+    .log-entry.info  { color: rgba(255,255,255,0.38); }
+    .log-entry.warn  { color: #ffd43b; background: rgba(255,212,59,0.06); }
+    .log-entry.error { color: #ff6b6b; background: rgba(255,107,107,0.07); }
+  </style>
+</head>
+<body>
+<div id="app-container">
+
+  <!-- Session Sidebar -->
+  <div id="log-sidebar">
+    <div class="sidebar-brand">
+      <div class="brand-icon">⚛</div>
+      <span class="brand-name">ChemCanvas AI</span>
+    </div>
+    <button id="btn-new-session">✏ 새 세션 시작</button>
+    <div id="session-list">
+      <div class="session-info">
+        PubChem MCP 기반<br>
+        유기화학 3D 튜터<br><br>
+        Gemini AI가 자연어를<br>
+        3D 애니메이션으로 변환합니다
+      </div>
+    </div>
+
+    <!-- 서버 로그 패널 -->
+    <div id="log-panel">
+      <div class="log-panel-header">
+        <span class="log-panel-title">서버 로그</span>
+        <span class="log-count-badge" id="log-count">0</span>
+      </div>
+      <div id="log-entries"></div>
+    </div>
+  </div>
+
+  <!-- 3D Viewer -->
+  <div id="viewer-pane">
+    <canvas id="canvas-3d"></canvas>
+
+    <div id="atom-tooltip" class="glass"></div>
+
+    <div class="header-overlay">
+      <h1>ChemCanvas AI</h1>
+      <p id="header-sub">유기화학 반응 3D 시각화</p>
+    </div>
+
+    <div class="legend glass" id="atom-legend"></div>
+
+    <div class="result-badge glass" id="result-badge">
+      <span class="badge-label">생성물 입체 구조</span>
+      <span class="badge-value"></span>
+    </div>
+  </div>
+
+  <!-- Chat Pane -->
+  <div id="chat-pane">
+    <div class="chat-header">
+      <div class="chat-header-top">
+        <div class="status-dot"></div>
+        <h2>ChemCanvas AI 튜터</h2>
+      </div>
+      <div class="chat-header-sub">Claude AI + PubChem MCP</div>
+    </div>
+
+    <div class="chat-messages" id="chat-messages"></div>
+
+    <div class="chat-input-area">
+      <input type="text" id="chat-input" placeholder="자연어로 질문하세요 (예: 뉴먼 투영도로 보여줘)">
+      <button id="chat-send">전송</button>
+    </div>
+  </div>
+
+</div>
+<script type="module" src="/src/App.js"></script>
+</body>
+</html>

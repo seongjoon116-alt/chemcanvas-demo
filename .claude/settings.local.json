@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(*)",
+      "Bash(scp -i \"C:\\Users\\acer\\Desktop\\capstone_gala\\ssh-key-2026-05-20 (1).key\" -o StrictHostKeyChecking=no \"C:\\Users\\acer\\Desktop\\better_pubchem\\pitch_demo.html\" ubuntu@168.107.10.156:/tmp/pitch_demo.html)",
+      "Bash(ssh -i \"C:\\Users\\acer\\Desktop\\capstone_gala\\ssh-key-2026-05-20 (1).key\" -o StrictHostKeyChecking=no ubuntu@168.107.10.156 \"sudo mv /tmp/pitch_demo.html /var/www/html/index.html && sudo chown www-data:www-data /var/www/html/index.html && sudo chmod 644 /var/www/html/index.html && echo OK\")",
+      "WebFetch(domain:pubchem.ncbi.nlm.nih.gov)",
+      "WebFetch(domain:pubchemdocs.ncbi.nlm.nih.gov)",
+      "Bash(cp \"C:/Users/acer/Desktop/better_pubchem/.claude/CLAUDE.md\" \"C:/Users/acer/Desktop/better_pubchem/cursorrules.md\" && echo \"done\")",
+      "WebSearch",
+      "Bash(node -e ' *)",
+      "Bash(curl -s http://localhost:3001/api/health)",
+      "Bash(node tests/run.js)",
+      "Bash(node tests/run.js 01)",
+      "Bash(node tests/run.js 03)"
+    ]
+  }
+}

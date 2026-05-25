@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChemCanvas AI Demo v2</title>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Pretendard', sans-serif; background: #f8f9fa; color: #333; height: 100vh; display: flex; overflow: hidden; }
+        #app-container { display: flex; width: 100%; height: 100%; }
+
+        /* ── Left Session Sidebar ── */
+        #log-sidebar {
+            width: 236px; flex-shrink: 0;
+            background: #16213e;
+            display: flex; flex-direction: column;
+            border-right: 1px solid rgba(255,255,255,0.05);
+        }
+        .sidebar-brand {
+            padding: 16px 14px 12px;
+            display: flex; align-items: center; gap: 9px;
+            border-bottom: 1px solid rgba(255,255,255,0.07);
+        }
+        .brand-icon {
+            width: 30px; height: 30px; border-radius: 8px;
+            background: linear-gradient(135deg, #339af0 30%, #cc5de8);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 15px; flex-shrink: 0;
+        }
+        .brand-name { font-size: 0.92rem; font-weight: 600; color: #e4e8ef; letter-spacing: -0.1px; }
+
+        #btn-new-session {
+            margin: 10px 10px 4px;
+            padding: 9px 12px;
+            background: rgba(255,255,255,0.05);
+            border: 1px dashed rgba(255,255,255,0.16);
+            border-radius: 8px;
+            color: rgba(255,255,255,0.55);
+            cursor: pointer; font-size: 0.8rem;
+            text-align: left; display: flex; align-items: center; gap: 7px;
+            transition: all 0.18s; font-family: inherit;
+        }
+        #btn-new-session:hover { background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.28); }
+
+        #session-list { flex: 1; overflow-y: auto; padding: 4px 8px 12px; }
+        #session-list::-webkit-scrollbar { width: 3px; }
+        #session-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+        .session-group-label {
+            font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.8px;
+            color: rgba(255,255,255,0.27); padding: 10px 8px 4px;
+        }
+        .session-item {
+            padding: 9px 10px; border-radius: 7px; cursor: pointer;
+            margin-bottom: 1px; border: 1px solid transparent;
+            transition: all 0.15s;
+        }
+        .session-item:hover { background: rgba(255,255,255,0.07); }
+        .session-item.active { background: rgba(51,154,240,0.14); border-color: rgba(51,154,240,0.28); }
+        .session-title {
+            font-size: 0.8rem; color: rgba(255,255,255,0.72);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .session-item.active .session-title { color: #90cdf4; }
+        .session-time { font-size: 0.67rem; color: rgba(255,255,255,0.26); margin-top: 2px; }
+        .session-mol-hint { font-size: 0.67rem; color: rgba(255,255,255,0.32); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        /* ── 3D Viewer Pane ── */
+        #viewer-pane {
+            flex: 1; min-width: 0; position: relative;
+            background: radial-gradient(circle at 40% 40%, #ffffff 0%, #edf2f7 100%);
+            overflow: hidden;
+        }
+        #canvas-3d { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+        #canvas-3d:active { cursor: grabbing; }
+
+        .glass {
+            background: rgba(255,255,255,0.75);
+            backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(0,0,0,0.07);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.05);
+        }
+
+        /* Molecule Toolbar */
+        #mol-toolbar {
+            position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 14px; border-radius: 26px; z-index: 20;
+            flex-wrap: wrap; max-width: 90%;
+        }
+        .add-mol-wrapper { position: relative; }
+        #btn-add-mol {
+            background: #339af0; color: #fff; border: none;
+            padding: 7px 14px; border-radius: 20px; cursor: pointer;
+            font-size: 0.8rem; font-weight: 600; font-family: inherit;
+            display: flex; align-items: center; gap: 5px; transition: background 0.18s;
+        }
+        #btn-add-mol:hover { background: #228be6; }
+        #mol-dropdown {
+            position: absolute; top: calc(100% + 7px); left: 0;
+            background: #fff; border: 1px solid #dee2e6; border-radius: 10px;
+            box-shadow: 0 8px 28px rgba(0,0,0,0.13);
+            min-width: 185px; display: none; z-index: 200; overflow: hidden;
+        }
+        #mol-dropdown.open { display: block; }
+        .dd-item {
+            padding: 10px 16px; cursor: pointer; font-size: 0.83rem; color: #333;
+            display: flex; align-items: center; gap: 10px;
+            border: none; background: none; width: 100%; text-align: left; font-family: inherit;
+        }
+        .dd-item:hover { background: #f1f8ff; }
+        .dd-formula { font-family: monospace; color: #339af0; font-weight: 700; min-width: 34px; }
+
+        #mol-tags { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .mol-tag {
+            background: #fff3cd; border: 1px solid #ffd43b; color: #6b4c00;
+            padding: 4px 10px; border-radius: 20px; font-size: 0.76rem;
+            display: flex; align-items: center; gap: 5px; white-space: nowrap;
+        }
+        .mol-tag.extra { background: #e7f5ff; border-color: #a5d8ff; color: #1864ab; }
+        .rm-mol { background: none; border: none; cursor: pointer; color: #adb5bd; font-size: 0.95rem; padding: 0; line-height: 1; }
+        .rm-mol:hover { color: #e03131; }
+        #btn-fit-all {
+            background: rgba(255,255,255,0.8); border: 1px solid #dee2e6; color: #495057;
+            padding: 6px 12px; border-radius: 20px; cursor: pointer;
+            font-size: 0.76rem; font-family: inherit; transition: all 0.18s;
+        }
+        #btn-fit-all:hover { background: #fff; border-color: #339af0; color: #228be6; }
+
+        .header-overlay { position: absolute; top: 70px; left: 20px; }
+        .header-overlay h1 { font-size: 1.35rem; font-weight: 600; color: #212529; margin-bottom: 2px; }
+        .header-overlay p { font-size: 0.82rem; color: #868e96; }
+
+        .legend {
+            position: absolute; bottom: 18px; left: 18px;
+            padding: 11px 15px; border-radius: 12px;
+            display: flex; gap: 14px; flex-wrap: wrap;
+            font-size: 0.78rem; color: #495057; max-width: 460px;
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; }
+        .dot.c   { background: #333; }
+        .dot.cl  { background: #00d82c; }
+        .dot.br  { background: #ff00ff; }
+        .dot.ch3 { background: #00d2ff; }
+        .dot.h   { background: #fff; border: 1px solid #ced4da; }
+        .dot.o   { background: #ff4136; }
+        .dot.sub { background: #ff8c00; }
+        .dot.diene      { background: #1971c2; }
+        .dot.dienophile { background: #e03131; }
+
+        .result-badge {
+            position: absolute; top: 20px; right: 20px;
+            padding: 13px 20px; border-radius: 12px;
+            border: 1px solid rgba(255,0,255,0.35);
+            background: rgba(255,0,255,0.04);
+            text-align: center; transition: opacity 0.5s;
+            opacity: 0; pointer-events: none;
+        }
+        .result-badge.visible { opacity: 1; }
+        .badge-label { display: block; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; color: #868e96; margin-bottom: 4px; }
+        .badge-value { display: block; font-size: 1.65rem; font-weight: 600; color: #ff00ff; }
+
+        /* ── Atom Tooltip ── */
+        #atom-tooltip {
+            position: fixed; z-index: 600;
+            padding: 11px 14px; border-radius: 10px;
+            min-width: 185px; max-width: 255px;
+            pointer-events: none; display: none;
+        }
+        #atom-tooltip.visible { display: block; }
+        .tt-header { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+        .tt-symbol {
+            font-size: 1.25rem; font-weight: 700; color: #fff;
+            width: 40px; height: 40px; border-radius: 8px;
+            display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+        }
+        .tt-el-name { font-size: 0.88rem; font-weight: 600; color: #212529; }
+        .tt-mass    { font-size: 0.74rem; color: #868e96; }
+        .tt-divider { height: 1px; background: rgba(0,0,0,0.07); margin: 7px 0; }
+        .tt-row { display: flex; align-items: center; gap: 6px; font-size: 0.78rem; color: #555; padding: 1px 0; }
+        .tt-lbl { font-size: 0.69rem; text-transform: uppercase; letter-spacing: 0.4px; color: #aaa; }
+        .bond-chip {
+            background: #f1f3f5; border-radius: 4px; padding: 2px 7px;
+            font-size: 0.71rem; color: #555; white-space: nowrap; margin-bottom: 3px;
+        }
+        .bond-chip.single { border-left: 2px solid #ced4da; }
+        .bond-chip.double { border-left: 3px solid #339af0; }
+        .bond-chip.triple { border-left: 4px solid #7950f2; }
+        .bond-list { display: flex; flex-direction: column; }
+
+        /* ── Right Chat Pane ── */
+        #chat-pane {
+            width: 370px; flex-shrink: 0;
+            display: flex; flex-direction: column;
+            background: #fff; border-left: 1px solid #e9ecef;
+            box-shadow: -4px 0 18px rgba(0,0,0,0.03);
+        }
+        .chat-header {
+            padding: 16px 18px 10px; border-bottom: 1px solid #e9ecef;
+        }
+        .chat-header-top { display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+        .status-dot { width: 9px; height: 9px; background: #339af0; border-radius: 50%; box-shadow: 0 0 7px rgba(51,154,240,0.5); }
+        .chat-header h2 { font-size: 0.97rem; font-weight: 600; color: #212529; }
+
+        /* Scenario Tabs */
+        .scenario-tabs {
+            display: flex; gap: 4px;
+        }
+        .scenario-tab {
+            flex: 1; padding: 6px 4px; border-radius: 7px; cursor: pointer;
+            font-size: 0.75rem; font-weight: 600; font-family: inherit;
+            border: 1px solid #dee2e6; background: #f8f9fa; color: #868e96;
+            transition: all 0.16s; white-space: nowrap; text-align: center;
+        }
+        .scenario-tab:hover { background: #e7f5ff; border-color: #a5d8ff; color: #1864ab; }
+        .scenario-tab.active {
+            background: #339af0; border-color: #339af0; color: #fff;
+            box-shadow: 0 2px 8px rgba(51,154,240,0.35);
+        }
+
+        .chat-messages {
+            flex: 1; overflow-y: auto;
+            padding: 14px; display: flex; flex-direction: column; gap: 12px;
+        }
+        .chat-messages::-webkit-scrollbar { width: 4px; }
+        .chat-messages::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 2px; }
+        .message {
+            max-width: 88%; padding: 11px 14px; border-radius: 13px;
+            font-size: 0.87rem; line-height: 1.55; word-break: keep-all;
+        }
+        .message.ai { background: #f1f8ff; border: 1px solid #d0ebff; align-self: flex-start; border-bottom-left-radius: 3px; color: #212529; }
+        .message.user { background: #f8f9fa; border: 1px solid #e9ecef; align-self: flex-end; border-bottom-right-radius: 3px; color: #212529; }
+
+        .chat-suggestions { padding: 10px 14px; display: flex; flex-direction: column; gap: 7px; border-top: 1px solid #e9ecef; }
+        .suggest-label { font-size: 0.72rem; color: #adb5bd; margin-bottom: 1px; }
+        #suggest-btns { display: flex; flex-direction: column; gap: 7px; }
+        .suggest-btn {
+            background: #fff; border: 1px solid #dee2e6; color: #495057;
+            padding: 9px 13px; border-radius: 9px; cursor: pointer;
+            text-align: left; font-size: 0.82rem; font-family: inherit;
+            display: flex; align-items: center; gap: 7px; transition: all 0.16s;
+        }
+        .suggest-btn:hover { background: #f1f8ff; border-color: #339af0; color: #212529; transform: translateY(-1px); }
+        .suggest-btn span { color: #339af0; font-weight: 700; flex-shrink: 0; }
+
+        .chat-input-area {
+            padding: 12px 14px; display: flex; gap: 8px;
+            border-top: 1px solid #e9ecef; background: #f8f9fa;
+            position: relative;
+        }
+        .chat-input-area input {
+            flex: 1; background: #fff; border: 1px solid #ced4da;
+            padding: 10px 13px; border-radius: 9px; color: #495057;
+            font-size: 0.85rem; outline: none; transition: border-color 0.2s; font-family: inherit;
+        }
+        .chat-input-area input:focus { border-color: #339af0; }
+        .chat-input-area button {
+            background: #339af0; color: #fff; border: none;
+            padding: 0 16px; border-radius: 9px; font-weight: 600;
+            cursor: pointer; font-family: inherit; font-size: 0.85rem; transition: background 0.18s;
+        }
+        .chat-input-area button:hover { background: #228be6; }
+
+        /* ── Command Palette ── */
+        #cmd-palette {
+            position: absolute; bottom: calc(100% + 1px); left: 0; right: 0;
+            background: #fff; border: 1px solid #dee2e6;
+            border-radius: 14px 14px 0 0;
+            box-shadow: 0 -10px 32px rgba(0,0,0,0.10);
+            max-height: 320px; overflow-y: auto;
+            display: none; z-index: 300;
+        }
+        #cmd-palette.open { display: block; }
+        #cmd-palette::-webkit-scrollbar { width: 3px; }
+        #cmd-palette::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 2px; }
+        .palette-section-label {
+            font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.7px;
+            color: #adb5bd; padding: 10px 14px 4px; pointer-events: none;
+        }
+        .palette-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 14px; cursor: pointer; font-size: 0.83rem; color: #495057;
+            border: none; background: none; width: 100%; text-align: left;
+            font-family: inherit; transition: background 0.12s;
+        }
+        .palette-item:hover, .palette-item.focused { background: #f1f8ff; color: #1864ab; }
+        .palette-item:hover .pi-icon, .palette-item.focused .pi-icon { color: #228be6; }
+        .pi-icon { font-size: 1rem; flex-shrink: 0; color: #339af0; width: 20px; text-align: center; }
+        .pi-text { flex: 1; }
+        .pi-tag {
+            font-size: 0.68rem; background: #f1f3f5; color: #868e96;
+            padding: 2px 7px; border-radius: 4px; white-space: nowrap;
+        }
+        .palette-divider { height: 1px; background: #f1f3f5; margin: 3px 0; }
+
+        .typing-indicator { display: flex; gap: 4px; padding: 7px 0; }
+        .typing-dot { width: 6px; height: 6px; background: #339af0; border-radius: 50%; animation: blink 1.4s infinite ease-in-out; }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes blink { 0%,100%{transform:translateY(0);opacity:.5} 50%{transform:translateY(-4px);opacity:1} }
+    </style>
+</head>
+<body>
+<div id="app-container">
+
+    <!-- ── Left: Session Log Sidebar ── -->
+    <div id="log-sidebar">
+        <div class="sidebar-brand">
+            <div class="brand-icon">⚛</div>
+            <span class="brand-name">ChemCanvas AI</span>
+        </div>
+        <button id="btn-new-session">✏ 새 세션 시작</button>
+        <div id="session-list"></div>
+    </div>
+
+    <!-- ── Middle: 3D Viewer ── -->
+    <div id="viewer-pane">
+        <canvas id="canvas-3d"></canvas>
+
+        <!-- Atom Tooltip -->
+        <div id="atom-tooltip" class="glass">
+            <div class="tt-header">
+                <div class="tt-symbol" id="tt-symbol">C</div>
+                <div>
+                    <div class="tt-el-name" id="tt-el-name">탄소</div>
+                    <div class="tt-mass" id="tt-mass">원자량: 12.011</div>
+                </div>
+            </div>
+            <div class="tt-row" id="tt-hybrid-row" style="display:none">
+                <span class="tt-lbl">혼성화</span>
+                <span id="tt-hybrid"></span>
+            </div>
+            <div class="tt-row" id="tt-charge-row" style="display:none">
+                <span class="tt-lbl">형식전하</span>
+                <span id="tt-charge"></span>
+            </div>
+            <div class="tt-divider"></div>
+            <div class="tt-lbl" style="margin-bottom:4px">결합</div>
+            <div class="bond-list" id="tt-bonds"></div>
+        </div>
+
+        <!-- Molecule Toolbar -->
+        <div id="mol-toolbar" class="glass">
+            <div id="mol-tags">
+                <div class="mol-tag" id="main-mol-tag">C2 카보양이온</div>
+            </div>
+            <button id="btn-fit-all">전체 보기</button>
+        </div>
+
+        <div class="header-overlay">
+            <h1>ChemCanvas AI</h1>
+            <p id="header-sub">(R)-3-chloro-1-butene + HBr 반응 샌드박스</p>
+        </div>
+
+        <div class="legend glass" id="legend-panel">
+            <div class="legend-item"><span class="dot c"></span> 탄소 C</div>
+            <div class="legend-item"><span class="dot cl"></span> 염소 Cl</div>
+            <div class="legend-item"><span class="dot ch3"></span> 메틸기 CH₃</div>
+            <div class="legend-item"><span class="dot h"></span> 수소 H</div>
+            <div class="legend-item"><span class="dot br"></span> 브로민 Br</div>
+            <div class="legend-item"><span class="dot o"></span> 산소 O</div>
+        </div>
+
+        <div class="result-badge glass" id="result-badge">
+            <span class="badge-label">생성물 입체 구조</span>
+            <span class="badge-value">(2R, 3R)</span>
+        </div>
+    </div>
+
+    <!-- ── Right: AI Chat Pane ── -->
+    <div id="chat-pane">
+        <div class="chat-header">
+            <div class="chat-header-top">
+                <div class="status-dot"></div>
+                <h2>ChemCanvas AI 튜터</h2>
+            </div>
+            <div class="scenario-tabs">
+                <button class="scenario-tab active" data-scenario="carbocation">HBr 첨가</button>
+                <button class="scenario-tab" data-scenario="ringflip">고리 뒤집기</button>
+                <button class="scenario-tab" data-scenario="dielsalder">디엘스-알더</button>
+            </div>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <div class="message ai">
+                안녕하세요! MCP 기반 유기화학 3D 튜터입니다.<br><br>
+                현재 <b>(R)-3-chloro-1-butene</b>에서 H⁺가 첨가되어 생성된 <b>C2 카보양이온 중간체</b>가 렌더링되어 있습니다.<br><br>
+                원자에 마우스를 올리면 원자 정보가 표시됩니다. 위 탭으로 다른 반응 시나리오를 선택하세요.
+            </div>
+        </div>
+        <div class="chat-suggestions">
+            <div class="suggest-label">시연용 프롬프트:</div>
+            <div id="suggest-btns"></div>
+        </div>
+        <div class="chat-input-area">
+            <div id="cmd-palette"></div>
+            <input type="text" id="chat-input" placeholder="클릭하거나 입력하세요...">
+            <button id="btn-send">전송</button>
+        </div>
+    </div>
+</div>
+
+<script type="importmap">
+    { "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+/* ═══════════════════════════════════════════════════════
+   CONSTANTS
+═══════════════════════════════════════════════════════ */
+const RADII  = { H:.3, C:.6, Cl:.9, Br:1.0, CH3:.9, O:.65, N:.65 };
+const COLORS = { C:0x333333, H:0xffffff, Cl:0x00d82c, Br:0xff00ff, CH3:0x00d2ff, O:0xff4136, N:0x4169e1, BOND:0xaaaaaa, PORB:0x339af0 };
+const ELEM   = {
+    H:   { kr:'수소',   en:'Hydrogen',  mass:'1.008'  },
+    C:   { kr:'탄소',   en:'Carbon',    mass:'12.011' },
+    Cl:  { kr:'염소',   en:'Chlorine',  mass:'35.450' },
+    Br:  { kr:'브로민', en:'Bromine',   mass:'79.904' },
+    O:   { kr:'산소',   en:'Oxygen',    mass:'15.999' },
+    N:   { kr:'질소',   en:'Nitrogen',  mass:'14.007' },
+    CH3: { kr:'메틸기', en:'Methyl',    mass:'15.035' },
+};
+const BOND_KR = { 1:'단일결합 (σ)', 2:'이중결합 (π+σ)', 3:'삼중결합' };
+const HYBR_KR = { sp:'sp 혼성화', sp2:'sp² 혼성화', sp3:'sp³ 혼성화' };
+const ELEM_BG = { H:'#888', C:'#333', Cl:'#00b347', Br:'#cc00cc', O:'#e03131', N:'#364fc7', CH3:'#0b7dda' };
+const MOL_SPACING = 10;
+
+/* Preset molecules for parallel display */
+const PRESETS = {
+    hbr: {
+        name:'HBr', label:'브로민화수소 (HBr)',
+        atoms:[
+            { id:'H1',  el:'H',  lbl:'H',  pos:{x:0,   y:0, z:0}, hyb:null, charge:0 },
+            { id:'Br1', el:'Br', lbl:'Br', pos:{x:4.0, y:0, z:0}, hyb:null, charge:0 },
+        ],
+        bonds:[{ a1:'H1', a2:'Br1', ord:1 }]
+    },
+    h2o: {
+        name:'H₂O', label:'물 (H₂O)',
+        atoms:[
+            { id:'O1', el:'O', lbl:'O', pos:{x:0,    y:0,     z:0}, hyb:'sp3', charge:0 },
+            { id:'H1', el:'H', lbl:'H', pos:{x:-2.2, y:-1.65, z:0}, hyb:null, charge:0 },
+            { id:'H2', el:'H', lbl:'H', pos:{x:2.2,  y:-1.65, z:0}, hyb:null, charge:0 },
+        ],
+        bonds:[{a1:'O1',a2:'H1',ord:1},{a1:'O1',a2:'H2',ord:1}]
+    },
+    ch4: {
+        name:'CH₄', label:'메탄 (CH₄)',
+        atoms:[
+            { id:'C1', el:'C', lbl:'C', pos:{x:0,    y:0,    z:0},   hyb:'sp3', charge:0 },
+            { id:'H1', el:'H', lbl:'H', pos:{x:1.8,  y:1.8,  z:1.8}, hyb:null, charge:0 },
+            { id:'H2', el:'H', lbl:'H', pos:{x:-1.8, y:-1.8, z:1.8}, hyb:null, charge:0 },
+            { id:'H3', el:'H', lbl:'H', pos:{x:-1.8, y:1.8,  z:-1.8},hyb:null, charge:0 },
+            { id:'H4', el:'H', lbl:'H', pos:{x:1.8,  y:-1.8, z:-1.8},hyb:null, charge:0 },
+        ],
+        bonds:[{a1:'C1',a2:'H1',ord:1},{a1:'C1',a2:'H2',ord:1},{a1:'C1',a2:'H3',ord:1},{a1:'C1',a2:'H4',ord:1}]
+    },
+    co2: {
+        name:'CO₂', label:'이산화탄소 (CO₂)',
+        atoms:[
+            { id:'C1', el:'C', lbl:'C', pos:{x:0,    y:0, z:0}, hyb:'sp', charge:0 },
+            { id:'O1', el:'O', lbl:'O', pos:{x:-3.6, y:0, z:0}, hyb:'sp', charge:0 },
+            { id:'O2', el:'O', lbl:'O', pos:{x:3.6,  y:0, z:0}, hyb:'sp', charge:0 },
+        ],
+        bonds:[{a1:'C1',a2:'O1',ord:2},{a1:'C1',a2:'O2',ord:2}]
+    }
+};
+
+/* ═══════════════════════════════════════════════════════
+   THREE.JS SCENE
+═══════════════════════════════════════════════════════ */
+let scene, camera, renderer, controls;
+const atomMeta = new WeakMap();
+let allAtomMeshes = [];
+
+function init3D() {
+    const canvas = document.getElementById('canvas-3d');
+    const pane   = document.getElementById('viewer-pane');
+
+    scene  = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(60, pane.clientWidth / pane.clientHeight, 0.1, 1000);
+    camera.position.set(6, 4, 8);
+
+    const w = pane.clientWidth  || (window.innerWidth - 236 - 370);
+    const h = pane.clientHeight || window.innerHeight;
+
+    renderer = new THREE.WebGLRenderer({ canvas, antialias:true, alpha:true });
+    renderer.setSize(w, h);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setClearColor(0x000000, 0);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.target.set(0, 0, 0);
+    camera.lookAt(0, 0, 0);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.5));
+    const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+    sun.position.set(10, 15, 10); sun.castShadow = true;
+    sun.shadow.mapSize.width = sun.shadow.mapSize.height = 2048;
+    sun.shadow.bias = -0.001;
+    scene.add(sun);
+    const bl = new THREE.PointLight(0x339af0, 0.8);
+    bl.position.set(-10, -10, -10);
+    scene.add(bl);
+
+    window.addEventListener('resize', () => {
+        camera.aspect = pane.clientWidth / pane.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(pane.clientWidth, pane.clientHeight);
+    });
+
+    buildMainMolecule();
+    buildRingflip();
+    buildDielsAlder();
+    animate3D();
+}
+
+/* ─── Mesh factories ─── */
+function mkAtom(el, pos) {
+    const geo = new THREE.SphereGeometry(RADII[el] ?? 0.5, 48, 48);
+    const mat = new THREE.MeshLambertMaterial({ color: COLORS[el] ?? 0x999999 });
+    const m   = new THREE.Mesh(geo, mat);
+    m.position.set(pos.x, pos.y, pos.z);
+    m.castShadow = m.receiveShadow = true;
+    return m;
+}
+
+const UP = new THREE.Vector3(0,1,0);
+function mkBond(p1, p2, ord=1) {
+    const meshes = [];
+    const dir    = new THREE.Vector3().subVectors(p2, p1);
+    const len    = dir.length();
+    const ctr    = new THREE.Vector3().addVectors(p1,p2).multiplyScalar(0.5);
+    const q      = new THREE.Quaternion().setFromUnitVectors(UP, dir.clone().normalize());
+
+    const addCyl = (r, off=new THREE.Vector3()) => {
+        const geo = new THREE.CylinderGeometry(r, r, 1.0, 28);
+        const mat = new THREE.MeshLambertMaterial({ color: COLORS.BOND });
+        const m   = new THREE.Mesh(geo, mat);
+        m.scale.y = len;
+        m.position.copy(ctr).add(off);
+        m.quaternion.copy(q);
+        m.castShadow = true;
+        meshes.push(m);
+    };
+
+    if (ord === 1) {
+        addCyl(0.12);
+    } else {
+        let perp = dir.clone().normalize().cross(UP);
+        if (perp.lengthSq() < 0.001) perp = dir.clone().normalize().cross(new THREE.Vector3(1,0,0));
+        perp.normalize();
+        const offs = ord === 2
+            ? [perp.clone().multiplyScalar(-0.19), perp.clone().multiplyScalar(0.19)]
+            : [perp.clone().multiplyScalar(-0.28), new THREE.Vector3(), perp.clone().multiplyScalar(0.28)];
+        const r = ord === 2 ? 0.09 : 0.07;
+        offs.forEach(o => addCyl(r, o));
+    }
+    return meshes;
+}
+
+function updateBond(meshes, p1, p2) {
+    const dir = new THREE.Vector3().subVectors(p2, p1);
+    const len = dir.length();
+    if (len < 0.001) return;
+    const ctr = new THREE.Vector3().addVectors(p1,p2).multiplyScalar(0.5);
+    const q   = new THREE.Quaternion().setFromUnitVectors(UP, dir.clone().normalize());
+    meshes.forEach(m => { m.scale.y=len; m.position.copy(ctr); m.quaternion.copy(q); });
+}
+
+function bondMap(atomDefs, bondDefs) {
+    const map = {};
+    atomDefs.forEach(a => (map[a.id] = []));
+    bondDefs.forEach(b => {
+        const a1 = atomDefs.find(a=>a.id===b.a1||a.id===b.atom1);
+        const a2 = atomDefs.find(a=>a.id===b.a2||a.id===b.atom2);
+        if (!a1||!a2) return;
+        const ord = b.ord ?? b.order ?? 1;
+        map[a1.id].push({ lbl:(a2.lbl??a2.label), el:(a2.el??a2.element), ord });
+        map[a2.id].push({ lbl:(a1.lbl??a1.label), el:(a1.el??a1.element), ord });
+    });
+    return map;
+}
+
+/* ═══════════════════════════════════════════════════════
+   MAIN MOLECULE (C2 Carbocation)
+═══════════════════════════════════════════════════════ */
+const main = {
+    group: new THREE.Group(),
+    atoms: {},
+    dynBonds: [],
+    brIon: null,
+    pOrbGrp: new THREE.Group(),
+    animStep: 0,
+    isNewman: false,
+};
+
+function buildMainMolecule() {
+    const g = main.group;
+
+    const atomDefs = [
+        { id:'C3',    el:'C',   lbl:'C3',   pos:{x:0,    y:0,    z:-1.5}, hyb:'sp3', charge:0 },
+        { id:'C3_Cl', el:'Cl',  lbl:'Cl',   pos:{x:1.5,  y:0.5,  z:-2.5}, hyb:null,  charge:0 },
+        { id:'C3_H',  el:'H',   lbl:'H',    pos:{x:-1.2, y:0.8,  z:-2.5}, hyb:null,  charge:0 },
+        { id:'C3_Me', el:'CH3', lbl:'CH₃',  pos:{x:0,    y:-1.8, z:-2.5}, hyb:null,  charge:0 },
+        { id:'C2',    el:'C',   lbl:'C2⁺',  pos:{x:0,    y:0,    z:1.5},  hyb:'sp2', charge:1 },
+        { id:'C2_Me', el:'CH3', lbl:'CH₃',  pos:{x:1.56, y:0,    z:2.4},  hyb:null,  charge:0 },
+        { id:'C2_H',  el:'H',   lbl:'H',    pos:{x:-1.56,y:0,    z:2.4},  hyb:null,  charge:0 },
+    ];
+    const bondDefs = [
+        { a1:'C3', a2:'C3_Cl', ord:1 }, { a1:'C3', a2:'C3_H',  ord:1 },
+        { a1:'C3', a2:'C3_Me', ord:1 }, { a1:'C3', a2:'C2',    ord:1 },
+        { a1:'C2', a2:'C2_Me', ord:1 }, { a1:'C2', a2:'C2_H',  ord:1 },
+    ];
+
+    const bmap = bondMap(atomDefs, bondDefs);
+
+    atomDefs.forEach(def => {
+        const m = mkAtom(def.el, def.pos);
+        g.add(m);
+        main.atoms[def.id] = m;
+        atomMeta.set(m, { el:def.el, lbl:def.lbl, hyb:def.hyb, charge:def.charge, bonds:bmap[def.id]||[] });
+        allAtomMeshes.push(m);
+    });
+
+    [bondDefs[0],bondDefs[1],bondDefs[2],bondDefs[3]].forEach(b => {
+        mkBond(main.atoms[b.a1].position, main.atoms[b.a2].position, b.ord).forEach(m => g.add(m));
+    });
+
+    const addDyn = (id1, id2) => {
+        const meshes = mkBond(main.atoms[id1].position, main.atoms[id2].position, 1);
+        meshes.forEach(m => g.add(m));
+        main.dynBonds.push({ meshes, p1Ref:main.atoms[id1], p2Ref:main.atoms[id2] });
+    };
+    addDyn('C2','C2_Me');
+    addDyn('C2','C2_H');
+
+    const c2p = main.atoms.C2.position;
+    const lobeGeo = new THREE.SphereGeometry(0.6, 32, 32);
+    lobeGeo.scale(1,2,1);
+    const lobeMat = new THREE.MeshLambertMaterial({
+        color:COLORS.PORB, transparent:true, opacity:0.4,
+        emissive:COLORS.PORB, emissiveIntensity:0.5
+    });
+    [1,-1].forEach(s => {
+        const l = new THREE.Mesh(lobeGeo.clone(), lobeMat.clone());
+        l.position.set(c2p.x, c2p.y + s*1.2, c2p.z);
+        main.pOrbGrp.add(l);
+    });
+    g.add(main.pOrbGrp);
+
+    const br = mkAtom('Br', {x:0,y:0,z:0});
+    br.material.emissive.setHex(COLORS.Br);
+    br.material.emissiveIntensity = 0.2;
+    br.visible = false;
+    g.add(br);
+    main.brIon = br;
+    atomMeta.set(br, { el:'Br', lbl:'Br⁻', hyb:null, charge:-1, bonds:[] });
+    allAtomMeshes.push(br);
+
+    scene.add(g);
+}
+
+function addBrBond() {
+    const meshes = mkBond(main.atoms.C2.position, main.brIon.position, 1);
+    meshes.forEach(m => main.group.add(m));
+    main.dynBonds.push({ meshes, p1Ref:main.atoms.C2, p2Ref:main.brIon, isBr:true });
+    atomMeta.get(main.brIon).bonds = [{ lbl:'C2', el:'C', ord:1 }];
+    atomMeta.get(main.atoms.C2).bonds.push({ lbl:'Br', el:'Br', ord:1 });
+}
+
+function removeBrBond() {
+    main.dynBonds = main.dynBonds.filter(db => {
+        if (db.isBr) { db.meshes.forEach(m => main.group.remove(m)); return false; }
+        return true;
+    });
+    const c2meta = atomMeta.get(main.atoms.C2);
+    c2meta.bonds = c2meta.bonds.filter(b => b.el !== 'Br');
+    atomMeta.get(main.brIon).bonds = [];
+}
+
+/* ═══════════════════════════════════════════════════════
+   EXTRA MOLECULE SLOTS
+═══════════════════════════════════════════════════════ */
+const extraSlots = [];
+
+function addPreset(key) {
+    const preset = PRESETS[key];
+    if (!preset) return null;
+
+    const idx     = extraSlots.length + 1;
+    const xOffset = idx * MOL_SPACING;
+    const group   = new THREE.Group();
+    group.position.x = xOffset;
+    const atoms  = {};
+    const bmap   = bondMap(preset.atoms, preset.bonds);
+
+    preset.atoms.forEach(def => {
+        const m = mkAtom(def.el, def.pos);
+        group.add(m);
+        atoms[def.id] = m;
+        atomMeta.set(m, { el:def.el, lbl:def.lbl, hyb:def.hyb, charge:def.charge, bonds:bmap[def.id]||[] });
+        allAtomMeshes.push(m);
+    });
+    preset.bonds.forEach(b => {
+        mkBond(atoms[b.a1].position, atoms[b.a2].position, b.ord)
+            .forEach(m => group.add(m));
+    });
+
+    scene.add(group);
+    const slot = { id:`slot_${Date.now()}`, key, group, atoms, xOffset };
+    extraSlots.push(slot);
+    renderMolTags();
+    fitCamera();
+    return slot;
+}
+
+function removeSlot(id) {
+    const idx = extraSlots.findIndex(s => s.id === id);
+    if (idx === -1) return;
+    const slot = extraSlots[idx];
+    Object.values(slot.atoms).forEach(m => {
+        const i = allAtomMeshes.indexOf(m);
+        if (i !== -1) allAtomMeshes.splice(i,1);
+    });
+    scene.remove(slot.group);
+    extraSlots.splice(idx, 1);
+    extraSlots.forEach((s,i) => {
+        s.group.position.x = (i+1)*MOL_SPACING;
+        s.xOffset = (i+1)*MOL_SPACING;
+    });
+    renderMolTags();
+    fitCamera();
+}
+
+function renderMolTags() {
+    const c = document.getElementById('mol-tags');
+    const mainTag = document.getElementById('main-mol-tag');
+    // Remove extra tags
+    c.querySelectorAll('.mol-tag.extra').forEach(t => t.remove());
+    extraSlots.forEach(s => {
+        const p   = PRESETS[s.key];
+        const tag = document.createElement('div');
+        tag.className = 'mol-tag extra';
+        tag.innerHTML = `${p.name} <button class="rm-mol">×</button>`;
+        tag.querySelector('.rm-mol').addEventListener('click', () => {
+            removeSlot(s.id);
+            saveSession();
+        });
+        c.appendChild(tag);
+    });
+}
+
+function fitCamera() {
+    const n    = 1 + extraSlots.length;
+    const midX = (n-1)*MOL_SPACING/2;
+    const dist = Math.max(10, n*6+2);
+    controls.target.set(midX, 0, 0);
+    gsap.to(camera.position, {
+        x: midX, y: dist*0.5, z: dist,
+        duration:1.0, ease:'power2.inOut',
+        onUpdate: () => camera.lookAt(controls.target)
+    });
+}
+
+/* ═══════════════════════════════════════════════════════
+   SCENARIO MANAGEMENT
+═══════════════════════════════════════════════════════ */
+let activeScenario = 'carbocation';
+
+const SCENARIO_DEFS = {
+    carbocation: {
+        label: 'HBr 첨가',
+        intro: '현재 <b>(R)-3-chloro-1-butene</b>에서 H⁺가 첨가되어 생성된 <b>C2 카보양이온 중간체</b>입니다.<br>원자에 마우스를 올리면 원자 정보가 표시됩니다.',
+        molTag: 'C2 카보양이온',
+        headerSub: '(R)-3-chloro-1-butene + HBr 반응 샌드박스',
+        suggestions: [
+            { label: '뉴먼 투영도로 입체 장애 보여줘', fn: 'runDemo1' },
+            { label: 'Br⁻ 공격 시뮬레이션 해', fn: 'runDemo2' },
+            { label: '초기 상태로 되돌려줘', fn: 'runDemo3' },
+        ],
+        camPos: { x:6, y:4, z:8 },
+    },
+    ringflip: {
+        label: '고리 뒤집기',
+        intro: '<b>사이클로헥세인(Cyclohexane) 고리 뒤집기</b>를 시뮬레이션합니다.<br><br>주황색 구(치환기)가 현재 <b>axial(축방향)</b> 위치에 있습니다.<br>고리 뒤집기 후 axial ↔ equatorial 위치가 교환됩니다.',
+        molTag: '사이클로헥세인',
+        headerSub: 'Cyclohexane Chair → Boat → Chair',
+        suggestions: [
+            { label: 'Axial/Equatorial 위치 설명해줘', fn: 'runRFDemo1' },
+            { label: '고리 뒤집기 애니메이션 실행', fn: 'runRFDemo2' },
+            { label: '초기 상태로 되돌려줘', fn: 'runRFDemo3' },
+        ],
+        camPos: { x:0, y:7, z:13 },
+    },
+    dielsalder: {
+        label: '디엘스-알더',
+        intro: '<b>디엘스-알더 반응 [4+2]</b>을 시뮬레이션합니다.<br><br><b style="color:#1971c2">파란색</b>: 다이엔 (butadiene, s-cis 형태)<br><b style="color:#c92a2a">빨간색</b>: 친다이엔체 (ethylene)<br><br>협력적(concerted) 메커니즘으로 사이클로헥센이 생성됩니다.',
+        molTag: '디엘스-알더 반응',
+        headerSub: 'Diels-Alder [4+2] Cycloaddition',
+        suggestions: [
+            { label: '친다이엔체 접근 시뮬레이션', fn: 'runDADemo1' },
+            { label: '결합 형성 & 사이클로헥센 생성', fn: 'runDADemo2' },
+            { label: '초기 상태로 되돌려줘', fn: 'runDADemo3' },
+        ],
+        camPos: { x:0, y:8, z:15 },
+    },
+};
+
+function switchScenario(key) {
+    if (key === activeScenario) return;
+    activeScenario = key;
+
+    main.group.visible       = (key === 'carbocation');
+    ringflip.group.visible   = (key === 'ringflip');
+    dielsalder.group.visible = (key === 'dielsalder');
+
+    document.querySelectorAll('.scenario-tab').forEach(t =>
+        t.classList.toggle('active', t.dataset.scenario === key));
+
+    renderScenarioSuggestions(key);
+
+    const def = SCENARIO_DEFS[key];
+    document.getElementById('main-mol-tag').textContent = def.molTag;
+    document.getElementById('header-sub').textContent   = def.headerSub;
+
+    controls.target.set(0, 0, 0);
+    const cam = def.camPos;
+    gsap.to(camera.position, {
+        x:cam.x, y:cam.y, z:cam.z,
+        duration:1.0, ease:'power2.inOut',
+        onUpdate:() => camera.lookAt(0,0,0)
+    });
+
+    addMsg(def.intro, 'ai');
+    renderCmdPalette('');
+}
+
+function renderScenarioSuggestions(key) {
+    const def = SCENARIO_DEFS[key];
+    const container = document.getElementById('suggest-btns');
+    container.innerHTML = '';
+    def.suggestions.forEach(s => {
+        const btn = document.createElement('button');
+        btn.className = 'suggest-btn';
+        btn.innerHTML = `<span>💬</span> ${s.label}`;
+        btn.addEventListener('click', () => dispatchScenarioFn(s.fn));
+        container.appendChild(btn);
+    });
+}
+
+function dispatchScenarioFn(name) {
+    const map = {
+        runDemo1, runDemo2, runDemo3,
+        runRFDemo1, runRFDemo2, runRFDemo3,
+        runDADemo1, runDADemo2, runDADemo3,
+    };
+    if (map[name]) map[name]();
+}
+
+/* ═══════════════════════════════════════════════════════
+   RING FLIP SCENARIO
+═══════════════════════════════════════════════════════ */
+const ringflip = { group: new THREE.Group(), atoms: {}, dynBonds: [], animStep: 0 };
+
+const RF_POS = {
+    chair1: {
+        C1:{x:2.5,y:0.8,z:0},      C2:{x:1.25,y:-0.8,z:2.165},
+        C3:{x:-1.25,y:0.8,z:2.165}, C4:{x:-2.5,y:-0.8,z:0},
+        C5:{x:-1.25,y:0.8,z:-2.165},C6:{x:1.25,y:-0.8,z:-2.165},
+        H1:{x:2.5,y:2.3,z:0},       H2:{x:1.25,y:-2.3,z:2.165},
+        H3:{x:-1.25,y:2.3,z:2.165}, H4:{x:-2.5,y:-2.3,z:0},
+        H5:{x:-1.25,y:2.3,z:-2.165},H6:{x:1.25,y:-2.3,z:-2.165},
+        Sub:{x:2.5,y:2.95,z:0},
+    },
+    boat: {
+        C1:{x:2.5,y:0.95,z:0},     C2:{x:1.25,y:0.0,z:2.165},
+        C3:{x:-1.25,y:0.0,z:2.165}, C4:{x:-2.5,y:0.95,z:0},
+        C5:{x:-1.25,y:0.0,z:-2.165},C6:{x:1.25,y:0.0,z:-2.165},
+        H1:{x:2.5,y:2.2,z:0.2},     H2:{x:1.5,y:-1.1,z:2.7},
+        H3:{x:-1.5,y:1.1,z:2.7},    H4:{x:-2.5,y:2.2,z:-0.2},
+        H5:{x:-1.5,y:1.1,z:-2.7},   H6:{x:1.5,y:-1.1,z:-2.7},
+        Sub:{x:2.5,y:2.75,z:0.35},
+    },
+    chair2: {
+        C1:{x:2.5,y:-0.8,z:0},      C2:{x:1.25,y:0.8,z:2.165},
+        C3:{x:-1.25,y:-0.8,z:2.165},C4:{x:-2.5,y:0.8,z:0},
+        C5:{x:-1.25,y:-0.8,z:-2.165},C6:{x:1.25,y:0.8,z:-2.165},
+        H1:{x:2.5,y:-2.3,z:0},      H2:{x:1.25,y:2.3,z:2.165},
+        H3:{x:-1.25,y:-2.3,z:2.165},H4:{x:-2.5,y:2.3,z:0},
+        H5:{x:-1.25,y:-2.3,z:-2.165},H6:{x:1.25,y:2.3,z:-2.165},
+        Sub:{x:3.8,y:-0.15,z:0.5},
+    },
+};
+
+function buildRingflip() {
+    const g   = ringflip.group;
+    const pos = RF_POS.chair1;
+
+    const cDefs = ['C1','C2','C3','C4','C5','C6'].map(id => ({
+        id, el:'C', lbl:id, hyb:'sp3', charge:0
+    }));
+    const hDefs = ['H1','H2','H3','H4','H5','H6'].map(id => ({
+        id, el:'H', lbl:`H (axial)`, hyb:null, charge:0
+    }));
+
+    const ringBonds = [
+        {a1:'C1',a2:'C2'},{a1:'C2',a2:'C3'},{a1:'C3',a2:'C4'},
+        {a1:'C4',a2:'C5'},{a1:'C5',a2:'C6'},{a1:'C6',a2:'C1'},
+    ];
+    const hBonds = [
+        {a1:'C1',a2:'H1'},{a1:'C2',a2:'H2'},{a1:'C3',a2:'H3'},
+        {a1:'C4',a2:'H4'},{a1:'C5',a2:'H5'},{a1:'C6',a2:'H6'},
+    ];
+
+    const bmap = {};
+    cDefs.forEach(a => {
+        bmap[a.id] = [];
+    });
+    ringBonds.forEach(b => {
+        bmap[b.a1].push({ lbl:b.a2, el:'C', ord:1 });
+        bmap[b.a2].push({ lbl:b.a1, el:'C', ord:1 });
+    });
+
+    [...cDefs, ...hDefs].forEach(def => {
+        const p = pos[def.id];
+        const m = mkAtom(def.el, p);
+        g.add(m);
+        ringflip.atoms[def.id] = m;
+        atomMeta.set(m, { el:def.el, lbl:def.lbl, hyb:def.hyb, charge:def.charge, bonds:bmap[def.id]||[] });
+        allAtomMeshes.push(m);
+    });
+
+    // Substituent (orange)
+    const subGeo = new THREE.SphereGeometry(0.58, 32, 32);
+    const subMat = new THREE.MeshLambertMaterial({ color:0xff8c00, emissive:0xff8c00, emissiveIntensity:0.25 });
+    const sub = new THREE.Mesh(subGeo, subMat);
+    sub.position.set(pos.Sub.x, pos.Sub.y, pos.Sub.z);
+    g.add(sub);
+    ringflip.atoms['Sub'] = sub;
+    atomMeta.set(sub, { el:'C', lbl:'치환기 (axial→eq)', hyb:'sp3', charge:0, bonds:[{lbl:'C1',el:'C',ord:1}] });
+    allAtomMeshes.push(sub);
+
+    const addDynBond = (id1, id2, ord=1) => {
+        const meshes = mkBond(ringflip.atoms[id1].position, ringflip.atoms[id2].position, ord);
+        meshes.forEach(m => g.add(m));
+        ringflip.dynBonds.push({ meshes, p1Ref:ringflip.atoms[id1], p2Ref:ringflip.atoms[id2] });
+    };
+
+    ringBonds.forEach(b => addDynBond(b.a1, b.a2));
+    hBonds.forEach(b   => addDynBond(b.a1, b.a2));
+    addDynBond('C1','Sub');
+
+    g.visible = false;
+    scene.add(g);
+}
+
+function animRingFlip() {
+    if (ringflip.animStep === 1) return;
+    ringflip.animStep = 1;
+
+    const dur = 0.9;
+    const tl  = gsap.timeline({ onComplete: () => {
+        ringflip.animStep = 2;
+        addMsg('<b>고리 뒤집기 완료!</b><br>주황색 치환기가 axial → <b>equatorial</b>로 이동했습니다.<br>equatorial 위치에서는 1,3-diaxial 상호작용이 사라져 입체 에너지가 낮아집니다.', 'ai');
+        saveSession();
+    }});
+
+    // chair1 → boat
+    Object.keys(RF_POS.boat).forEach(id => {
+        if (!ringflip.atoms[id]) return;
+        const t = RF_POS.boat[id];
+        tl.to(ringflip.atoms[id].position, { x:t.x, y:t.y, z:t.z, duration:dur, ease:'power1.inOut' }, 0);
+    });
+
+    // boat → chair2
+    Object.keys(RF_POS.chair2).forEach(id => {
+        if (!ringflip.atoms[id]) return;
+        const t = RF_POS.chair2[id];
+        tl.to(ringflip.atoms[id].position, { x:t.x, y:t.y, z:t.z, duration:dur, ease:'power1.inOut' }, dur+0.1);
+    });
+}
+
+function resetRingflip() {
+    ringflip.animStep = 0;
+    Object.keys(RF_POS.chair1).forEach(id => {
+        if (!ringflip.atoms[id]) return;
+        const t = RF_POS.chair1[id];
+        gsap.to(ringflip.atoms[id].position, { x:t.x, y:t.y, z:t.z, duration:0.8, ease:'power2.inOut' });
+    });
+}
+
+/* ═══════════════════════════════════════════════════════
+   DIELS-ALDER SCENARIO
+═══════════════════════════════════════════════════════ */
+const dielsalder = { group: new THREE.Group(), atoms: {}, dynBonds: [], newBondMeshes: [], animStep: 0 };
+
+const DA_DIENE = {
+    Cd1:{x:-1.5,y:0,z:1.0}, Cd2:{x:-0.5,y:0,z:2.3},
+    Cd3:{x:0.5,y:0,z:2.3},  Cd4:{x:1.5,y:0,z:1.0},
+};
+const DA_ENOPHILE_INIT = { Ce1:{x:-1.3,y:6.0,z:0}, Ce2:{x:1.3,y:6.0,z:0} };
+const DA_ENOPHILE_TS   = { Ce1:{x:-1.3,y:2.5,z:0}, Ce2:{x:1.3,y:2.5,z:0} };
+const DA_PRODUCT = {
+    Cd1:{x:-1.5,y:0.4,z:1.0}, Cd2:{x:-0.5,y:0.0,z:2.3},
+    Cd3:{x:0.5,y:0.0,z:2.3},  Cd4:{x:1.5,y:0.4,z:1.0},
+    Ce1:{x:-1.3,y:1.5,z:0.0}, Ce2:{x:1.3,y:1.5,z:0.0},
+};
+
+function buildDielsAlder() {
+    const g = dielsalder.group;
+
+    // Diene carbons (blue)
+    ['Cd1','Cd2','Cd3','Cd4'].forEach(id => {
+        const p   = DA_DIENE[id];
+        const geo = new THREE.SphereGeometry(0.6, 48, 48);
+        const mat = new THREE.MeshLambertMaterial({ color: 0x1971c2 });
+        const m   = new THREE.Mesh(geo, mat);
+        m.position.set(p.x, p.y, p.z);
+        g.add(m);
+        dielsalder.atoms[id] = m;
+        const bonds = [];
+        if (id==='Cd1') bonds.push({lbl:'Cd2',el:'C',ord:2});
+        if (id==='Cd2') { bonds.push({lbl:'Cd1',el:'C',ord:2}); bonds.push({lbl:'Cd3',el:'C',ord:1}); }
+        if (id==='Cd3') { bonds.push({lbl:'Cd2',el:'C',ord:1}); bonds.push({lbl:'Cd4',el:'C',ord:2}); }
+        if (id==='Cd4') bonds.push({lbl:'Cd3',el:'C',ord:2});
+        atomMeta.set(m, { el:'C', lbl:id+' (diene)', hyb:'sp2', charge:0, bonds });
+        allAtomMeshes.push(m);
+    });
+
+    // Dienophile carbons (red)
+    ['Ce1','Ce2'].forEach((id,i) => {
+        const p   = i===0 ? DA_ENOPHILE_INIT.Ce1 : DA_ENOPHILE_INIT.Ce2;
+        const geo = new THREE.SphereGeometry(0.6, 48, 48);
+        const mat = new THREE.MeshLambertMaterial({ color: 0xc92a2a });
+        const m   = new THREE.Mesh(geo, mat);
+        m.position.set(p.x, p.y, p.z);
+        g.add(m);
+        dielsalder.atoms[id] = m;
+        const partner = id==='Ce1' ? 'Ce2' : 'Ce1';
+        atomMeta.set(m, { el:'C', lbl:id+' (dienophile)', hyb:'sp2', charge:0, bonds:[{lbl:partner,el:'C',ord:2}] });
+        allAtomMeshes.push(m);
+    });
+
+    // Static diene bonds
+    const staticPairs = [{a1:'Cd1',a2:'Cd2',o:2},{a1:'Cd2',a2:'Cd3',o:1},{a1:'Cd3',a2:'Cd4',o:2}];
+    staticPairs.forEach(b => {
+        mkBond(dielsalder.atoms[b.a1].position, dielsalder.atoms[b.a2].position, b.o)
+            .forEach(m => g.add(m));
+    });
+
+    // Dynamic dienophile C=C bond
+    const deMeshes = mkBond(dielsalder.atoms.Ce1.position, dielsalder.atoms.Ce2.position, 2);
+    deMeshes.forEach(m => g.add(m));
+    dielsalder.dynBonds.push({ meshes:deMeshes, p1Ref:dielsalder.atoms.Ce1, p2Ref:dielsalder.atoms.Ce2 });
+
+    // New sigma bonds (hidden, form during reaction)
+    const nb1 = mkBond(dielsalder.atoms.Cd1.position, dielsalder.atoms.Ce1.position, 1);
+    const nb2 = mkBond(dielsalder.atoms.Cd4.position, dielsalder.atoms.Ce2.position, 1);
+    [...nb1,...nb2].forEach(m => { m.visible = false; g.add(m); });
+    dielsalder.newBondMeshes = [...nb1,...nb2];
+    dielsalder.dynBonds.push({ meshes:nb1, p1Ref:dielsalder.atoms.Cd1, p2Ref:dielsalder.atoms.Ce1 });
+    dielsalder.dynBonds.push({ meshes:nb2, p1Ref:dielsalder.atoms.Cd4, p2Ref:dielsalder.atoms.Ce2 });
+
+    g.visible = false;
+    scene.add(g);
+}
+
+function animDAApproach() {
+    if (dielsalder.animStep > 0) return;
+    dielsalder.animStep = 1;
+    const ts = DA_ENOPHILE_TS;
+    gsap.to(dielsalder.atoms.Ce1.position, { x:ts.Ce1.x, y:ts.Ce1.y, z:ts.Ce1.z, duration:2.0, ease:'power1.inOut' });
+    gsap.to(dielsalder.atoms.Ce2.position, { x:ts.Ce2.x, y:ts.Ce2.y, z:ts.Ce2.z, duration:2.0, ease:'power1.inOut',
+        onComplete: () => {
+            addMsg('전이 상태(TS) 도달 — 친다이엔체가 다이엔과 face-to-face로 정렬되었습니다.<br>다음 단계에서 새로운 C-C σ결합 2개가 동시에 형성됩니다.', 'ai');
+            saveSession();
+        }
+    });
+}
+
+function animDAProduct() {
+    if (dielsalder.animStep === 2) return;
+    if (dielsalder.animStep === 0) {
+        animDAApproach();
+        setTimeout(animDAProduct, 2300);
+        return;
+    }
+    dielsalder.animStep = 2;
+    dielsalder.newBondMeshes.forEach(m => m.visible = true);
+
+    const prod = DA_PRODUCT;
+    const tl = gsap.timeline({ onComplete: () => {
+        addMsg('<b>사이클로헥센 생성!</b><br>[4+2] 고리화 첨가 완료 — 새로운 C-C σ결합 2개 형성, 중앙 C=C 이중결합 유지.<br>반응은 <b>입체특이적(stereospecific)</b>: endo/exo 면 선택성이 결정됩니다.', 'ai');
+        saveSession();
+    }});
+    Object.keys(prod).forEach(id => {
+        if (!dielsalder.atoms[id]) return;
+        const t = prod[id];
+        tl.to(dielsalder.atoms[id].position, { x:t.x, y:t.y, z:t.z, duration:1.1, ease:'power2.inOut' }, 0);
+    });
+}
+
+function resetDA() {
+    dielsalder.animStep = 0;
+    dielsalder.newBondMeshes.forEach(m => m.visible = false);
+    const init = { ...DA_DIENE, ...DA_ENOPHILE_INIT };
+    Object.keys(init).forEach(id => {
+        if (!dielsalder.atoms[id]) return;
+        const t = init[id];
+        gsap.to(dielsalder.atoms[id].position, { x:t.x, y:t.y, z:t.z, duration:0.8, ease:'power2.inOut' });
+    });
+}
+
+/* ═══════════════════════════════════════════════════════
+   ANIMATION LOOP
+═══════════════════════════════════════════════════════ */
+function animate3D() {
+    requestAnimationFrame(animate3D);
+    controls.update();
+
+    if (activeScenario === 'carbocation') {
+        if (!main.isNewman && main.animStep === 0)
+            main.group.rotation.y = Math.sin(Date.now()*0.001)*0.2;
+        main.dynBonds.forEach(db => updateBond(db.meshes, db.p1Ref.position, db.p2Ref.position));
+    } else if (activeScenario === 'ringflip') {
+        if (ringflip.animStep !== 1)
+            ringflip.group.rotation.y = Math.sin(Date.now()*0.0008)*0.18;
+        ringflip.dynBonds.forEach(db => updateBond(db.meshes, db.p1Ref.position, db.p2Ref.position));
+    } else if (activeScenario === 'dielsalder') {
+        if (dielsalder.animStep === 0)
+            dielsalder.group.rotation.y = Math.sin(Date.now()*0.0008)*0.12;
+        dielsalder.dynBonds.forEach(db => updateBond(db.meshes, db.p1Ref.position, db.p2Ref.position));
+    }
+
+    renderer.render(scene, camera);
+}
+
+/* ═══════════════════════════════════════════════════════
+   ATOM HOVER TOOLTIP
+═══════════════════════════════════════════════════════ */
+const raycaster = new THREE.Raycaster();
+const mouse     = new THREE.Vector2();
+const tooltip   = document.getElementById('atom-tooltip');
+let   lastHit   = null;
+
+document.getElementById('viewer-pane').addEventListener('mousemove', e => {
+    const rect = renderer.domElement.getBoundingClientRect();
+    mouse.x    =  ((e.clientX - rect.left)  / rect.width)  * 2 - 1;
+    mouse.y    = -((e.clientY - rect.top)   / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, camera);
+    const hits = raycaster.intersectObjects(allAtomMeshes);
+
+    if (hits.length > 0) {
+        const mesh = hits[0].object;
+        if (mesh !== lastHit) { lastHit = mesh; showTooltip(mesh); }
+        tooltip.style.left = (e.clientX + 16) + 'px';
+        tooltip.style.top  = (e.clientY - 8)  + 'px';
+        const r = tooltip.getBoundingClientRect();
+        if (r.right  > window.innerWidth  - 10) tooltip.style.left = (e.clientX - r.width  - 16) + 'px';
+        if (r.bottom > window.innerHeight - 10) tooltip.style.top  = (e.clientY - r.height + 8)  + 'px';
+    } else {
+        hideTooltip(); lastHit = null;
+    }
+});
+document.getElementById('viewer-pane').addEventListener('mouseleave', hideTooltip);
+
+function showTooltip(mesh) {
+    const meta = atomMeta.get(mesh);
+    if (!meta) return;
+    const info = ELEM[meta.el] || { kr:meta.el, en:meta.el, mass:'—' };
+
+    document.getElementById('tt-symbol').textContent     = meta.el === 'CH3' ? 'Me' : meta.el;
+    document.getElementById('tt-symbol').style.background = ELEM_BG[meta.el] || '#555';
+    document.getElementById('tt-el-name').textContent    = `${info.kr} (${meta.lbl})`;
+    document.getElementById('tt-mass').textContent       = `원자량: ${info.mass}`;
+
+    const hybRow = document.getElementById('tt-hybrid-row');
+    if (meta.hyb) {
+        hybRow.style.display = 'flex';
+        document.getElementById('tt-hybrid').textContent = HYBR_KR[meta.hyb] || meta.hyb;
+    } else { hybRow.style.display = 'none'; }
+
+    const chgRow = document.getElementById('tt-charge-row');
+    if (meta.charge !== 0 && meta.charge != null) {
+        chgRow.style.display = 'flex';
+        document.getElementById('tt-charge').textContent = meta.charge > 0 ? `+${meta.charge}` : `${meta.charge}`;
+    } else { chgRow.style.display = 'none'; }
+
+    const bondList = document.getElementById('tt-bonds');
+    bondList.innerHTML = '';
+    if (meta.bonds && meta.bonds.length > 0) {
+        meta.bonds.forEach(b => {
+            const chip = document.createElement('div');
+            const cls  = b.ord===2?'double':b.ord===3?'triple':'single';
+            chip.className = `bond-chip ${cls}`;
+            chip.textContent = `${b.lbl}  —  ${BOND_KR[b.ord]||b.ord}`;
+            bondList.appendChild(chip);
+        });
+    } else {
+        const chip = document.createElement('div');
+        chip.className = 'bond-chip single';
+        chip.textContent = '결합 없음 (이온)';
+        bondList.appendChild(chip);
+    }
+    tooltip.classList.add('visible');
+}
+function hideTooltip() { tooltip.classList.remove('visible'); }
+
+/* ═══════════════════════════════════════════════════════
+   CHAT HELPERS
+═══════════════════════════════════════════════════════ */
+const msgContainer = document.getElementById('chat-messages');
+
+function addMsg(html, sender) {
+    const d = document.createElement('div');
+    d.className = `message ${sender}`;
+    d.innerHTML = html;
+    msgContainer.appendChild(d);
+    msgContainer.scrollTop = msgContainer.scrollHeight;
+    currentSession().messages.push({ html, sender });
+    renderSessionList();
+}
+
+function showTyping() {
+    const d = document.createElement('div');
+    d.className = 'message ai'; d.id = 'typing';
+    d.innerHTML = '<div class="typing-indicator"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>';
+    msgContainer.appendChild(d);
+    msgContainer.scrollTop = msgContainer.scrollHeight;
+}
+function rmTyping() { document.getElementById('typing')?.remove(); }
+
+/* ═══════════════════════════════════════════════════════
+   SESSION LOG
+═══════════════════════════════════════════════════════ */
+let sessions = [];
+let activeSessionId = null;
+
+function newSession(title='새 세션') {
+    const s = { id:`s_${Date.now()}`, title, timestamp:new Date(), messages:[], snapshot:null };
+    sessions.unshift(s);
+    activeSessionId = s.id;
+    renderSessionList();
+    return s;
+}
+
+function currentSession() {
+    return sessions.find(s => s.id === activeSessionId) || sessions[0];
+}
+
+function captureSnapshot() {
+    const snap = {
+        atomPos: {}, brVisible: main.brIon.visible,
+        brPos: { ...main.brIon.position },
+        pOrbScale: { ...main.pOrbGrp.scale },
+        animStep: main.animStep, isNewman: main.isNewman,
+        camPos: { x:camera.position.x, y:camera.position.y, z:camera.position.z },
+        badgeVisible: document.getElementById('result-badge').classList.contains('visible'),
+        extraKeys: extraSlots.map(s => s.key),
+        scenario: activeScenario,
+    };
+    Object.entries(main.atoms).forEach(([id,m]) => {
+        snap.atomPos[id] = { x:m.position.x, y:m.position.y, z:m.position.z };
+    });
+    return snap;
+}
+
+function saveSession() {
+    const s = currentSession();
+    if (s) s.snapshot = captureSnapshot();
+    renderSessionList();
+}
+
+function restoreSession(sessionId) {
+    const s = sessions.find(x => x.id === sessionId);
+    if (!s || !s.snapshot) { activeSessionId = sessionId; renderSessionList(); return; }
+    activeSessionId = sessionId;
+
+    msgContainer.innerHTML = '';
+    s.messages.forEach(m => {
+        const d = document.createElement('div');
+        d.className = `message ${m.sender}`;
+        d.innerHTML = m.html;
+        msgContainer.appendChild(d);
+    });
+    msgContainer.scrollTop = msgContainer.scrollHeight;
+
+    const snap = s.snapshot;
+    resetMainInstant();
+
+    Object.entries(snap.atomPos).forEach(([id,pos]) => {
+        if (main.atoms[id]) main.atoms[id].position.set(pos.x, pos.y, pos.z);
+    });
+    main.brIon.visible = snap.brVisible;
+    if (snap.brVisible) {
+        main.brIon.position.set(snap.brPos.x, snap.brPos.y, snap.brPos.z);
+        addBrBond();
+    }
+    main.pOrbGrp.scale.set(snap.pOrbScale.x, snap.pOrbScale.y, snap.pOrbScale.z);
+    main.animStep = snap.animStep;
+    main.isNewman = snap.isNewman;
+
+    const badge = document.getElementById('result-badge');
+    snap.badgeVisible ? badge.classList.add('visible') : badge.classList.remove('visible');
+
+    extraSlots.forEach(sl => scene.remove(sl.group));
+    extraSlots.length = 0;
+    allAtomMeshes.length = 0;
+    Object.values(main.atoms).forEach(m => allAtomMeshes.push(m));
+    allAtomMeshes.push(main.brIon);
+    Object.values(ringflip.atoms).forEach(m => allAtomMeshes.push(m));
+    Object.values(dielsalder.atoms).forEach(m => allAtomMeshes.push(m));
+    snap.extraKeys.forEach(k => addPreset(k));
+
+    if (snap.scenario) {
+        activeScenario = snap.scenario;
+        main.group.visible       = (snap.scenario === 'carbocation');
+        ringflip.group.visible   = (snap.scenario === 'ringflip');
+        dielsalder.group.visible = (snap.scenario === 'dielsalder');
+        document.querySelectorAll('.scenario-tab').forEach(t =>
+            t.classList.toggle('active', t.dataset.scenario === snap.scenario));
+        renderScenarioSuggestions(snap.scenario);
+    }
+
+    gsap.to(camera.position, {
+        x:snap.camPos.x, y:snap.camPos.y, z:snap.camPos.z,
+        duration:0.8, ease:'power2.inOut',
+        onUpdate: () => camera.lookAt(controls.target)
+    });
+    renderSessionList();
+}
+
+function resetMainInstant() {
+    removeBrBond();
+    main.brIon.visible = false;
+    main.pOrbGrp.scale.set(1,1,1);
+    main.animStep = 0;
+    main.isNewman = false;
+    main.group.rotation.set(0,0,0);
+    const init = {
+        C3:{x:0,y:0,z:-1.5}, C3_Cl:{x:1.5,y:0.5,z:-2.5}, C3_H:{x:-1.2,y:0.8,z:-2.5},
+        C3_Me:{x:0,y:-1.8,z:-2.5}, C2:{x:0,y:0,z:1.5},
+        C2_Me:{x:1.56,y:0,z:2.4}, C2_H:{x:-1.56,y:0,z:2.4},
+    };
+    Object.entries(init).forEach(([id,p]) => main.atoms[id]?.position.set(p.x,p.y,p.z));
+    document.getElementById('result-badge').classList.remove('visible');
+}
+
+function formatTime(date) {
+    const d = new Date(date);
+    const diff = (Date.now() - d) / 1000;
+    if (diff < 60)    return '방금 전';
+    if (diff < 3600)  return `${Math.floor(diff/60)}분 전`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}시간 전`;
+    return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+function renderSessionList() {
+    const list = document.getElementById('session-list');
+    list.innerHTML = '';
+    const current = sessions.filter(s => s.id === activeSessionId);
+    const past    = sessions.filter(s => s.id !== activeSessionId);
+
+    if (current.length) {
+        const lbl = document.createElement('div');
+        lbl.className = 'session-group-label'; lbl.textContent = '현재';
+        list.appendChild(lbl);
+        renderItem(current[0], list);
+    }
+    if (past.length) {
+        const lbl = document.createElement('div');
+        lbl.className = 'session-group-label'; lbl.textContent = '이전 세션';
+        list.appendChild(lbl);
+        past.forEach(s => renderItem(s, list));
+    }
+}
+
+function renderItem(s, container) {
+    const div = document.createElement('div');
+    div.className = `session-item${s.id===activeSessionId?' active':''}`;
+    const title = s.messages.find(m=>m.sender==='user')?.html?.replace(/<[^>]+>/g,'') || s.title;
+    const mols  = s.snapshot?.extraKeys?.map(k=>PRESETS[k]?.name||k).join(', ') || '';
+    div.innerHTML = `
+        <div class="session-title">${title.slice(0,28)}</div>
+        <div class="session-time">${formatTime(s.timestamp)}</div>
+        ${mols ? `<div class="session-mol-hint">+ ${mols}</div>` : ''}
+    `;
+    div.addEventListener('click', () => restoreSession(s.id));
+    container.appendChild(div);
+}
+
+/* ═══════════════════════════════════════════════════════
+   CARBOCATION DEMO ACTIONS
+═══════════════════════════════════════════════════════ */
+function runDemo1() {
+    addMsg('뉴먼 투영도로 입체 장애 보여줘', 'user');
+    showTyping();
+    setTimeout(() => {
+        rmTyping();
+        addMsg('C2–C3 결합축을 따라 정면에서 바라보는 <b>뉴먼 투영도(Newman Projection)</b> 시점으로 카메라를 회전합니다.<br><br>뒤쪽 탄소(C3)의 <b>초록색 염소(Cl)</b>가 오른쪽 공간을 막고 있는 것을 확인하세요.', 'ai');
+        main.isNewman = true;
+        gsap.to(camera.position, { x:0, y:0, z:10, duration:1.5, ease:'power2.inOut', onUpdate:()=>camera.lookAt(0,0,0) });
+        gsap.to(main.group.rotation, { x:0, y:0, z:0, duration:1.5, ease:'power2.inOut' });
+        saveSession();
+    }, 1200);
+}
+
+function runDemo2() {
+    if (main.animStep > 0) return;
+    addMsg('Br⁻ 공격 시뮬레이션 해', 'user');
+    showTyping();
+    setTimeout(() => {
+        rmTyping();
+        addMsg('Cl이 막고 있는 오른쪽 대신 <b>H 쪽(왼쪽 상단)</b>에서 빈 p-오비탈을 향해 Br⁻ 이온이 접근합니다.<br><br>결합이 형성되며 치환기들이 우산처럼 뒤집혀 <b>(2R, 3R)</b> 주생성물이 만들어집니다.', 'ai');
+
+        main.animStep = 1;
+        main.brIon.visible = true;
+        main.brIon.position.set(-4,6,1.5);
+
+        const tl = gsap.timeline({ onComplete: () => {
+            document.getElementById('result-badge').classList.add('visible');
+            main.animStep = 2;
+            saveSession();
+        }});
+        tl.to(main.brIon.position, { x:-1.5, y:3.0, z:1.5, duration:1.5, ease:'power1.inOut' });
+        tl.addLabel('attack');
+        tl.add(() => addBrBond(), 'attack');
+        tl.to(main.brIon.position,       { x:0,    y:1.697,z:2.1, duration:1.0, ease:'power2.inOut' }, 'attack');
+        tl.to(main.pOrbGrp.scale,        { x:0,    y:0,    z:0,   duration:0.5 }, 'attack');
+        tl.to(main.atoms.C2_Me.position, { x:1.47, y:-0.85,z:2.1, duration:1.0, ease:'power2.inOut' }, 'attack');
+        tl.to(main.atoms.C2_H.position,  { x:-1.47,y:-0.85,z:2.1, duration:1.0, ease:'power2.inOut' }, 'attack');
+    }, 1500);
+}
+
+function runDemo3() {
+    addMsg('초기 상태로 되돌려줘', 'user');
+    showTyping();
+    setTimeout(() => {
+        rmTyping();
+        addMsg('<b>카보양이온 중간체</b> 초기 상태로 초기화했습니다.', 'ai');
+        removeBrBond();
+        main.animStep = 0; main.isNewman = false;
+        main.brIon.visible = false;
+        main.pOrbGrp.scale.set(1,1,1);
+        main.atoms.C2_Me.position.set(1.56,0,2.4);
+        main.atoms.C2_H.position.set(-1.56,0,2.4);
+        document.getElementById('result-badge').classList.remove('visible');
+        gsap.to(camera.position, { x:6, y:4, z:8, duration:1.5, ease:'power2.inOut', onUpdate:()=>camera.lookAt(0,0,0) });
+        gsap.to(main.group.rotation, { x:0, y:0, z:0, duration:1.5 });
+        controls.target.set(0,0,0);
+        saveSession();
+    }, 800);
+}
+
+/* ── Ring Flip Demo Actions ── */
+function runRFDemo1() {
+    addMsg('Axial/Equatorial 위치 설명해줘', 'user');
+    showTyping();
+    setTimeout(() => {
+        rmTyping();
+        addMsg('<b>Axial(축방향)</b>: 고리 평면에 거의 수직, 위/아래를 향함<br><b>Equatorial(적도방향)</b>: 고리 평면에 약간 기울어진 방향, 외측을 향함<br><br><b style="color:#ff8c00">주황색 치환기</b>가 현재 C1의 <b>axial</b> 위치에 있습니다.<br>큰 치환기가 axial이면 1,3-diaxial 상호작용으로 입체 에너지가 높아지므로, equatorial이 선호됩니다.', 'ai');
+        gsap.to(ringflip.atoms.Sub.scale, { x:1.5, y:1.5, z:1.5, duration:0.35, yoyo:true, repeat:5 });
+        saveSession();
+    }, 1000);
+}
+
+function runRFDemo2() {
+    addMsg('고리 뒤집기 애니메이션 실행', 'user');
+    showTyping();
+    setTimeout(() => {
+        rmTyping();
+        addMsg('사이클로헥세인 고리가 <b>chair → boat → chair</b> 순서로 뒤집힙니다.<br>주황색 치환기가 <b>axial → equatorial</b>로 이동하는 것을 관찰하세요.', 'ai');
+        animRingFlip();
+    }, 1000);
+}
+
+function runRFDemo3() {
+    addMsg('초기 상태로 되돌려줘', 'user');
+    showTyping();
+    setTimeout(() => {
+        rmTyping();
+        addMsg('사이클로헥세인 초기 chair 형태(치환기 axial)로 초기화했습니다.', 'ai');
+        resetRingflip();
+        saveSession();
+    }, 600);
+}
+
+/* ── Diels-Alder Demo Actions ── */
+function runDADemo1() {
+    addMsg('친다이엔체 접근 시뮬레이션', 'user');
+    showTyping();
+    setTimeout(() => {
+        rmTyping();
+        addMsg('<b style="color:#c92a2a">친다이엔체(ethylene, 빨간색)</b>가 위에서 <b style="color:#1971c2">다이엔(파란색)</b>을 향해 face-to-face로 접근합니다.<br>이 정렬이 [4+2] 협력적 메커니즘의 핵심입니다.', 'ai');
+        animDAApproach();
+    }, 800);
+}
+
+function runDADemo2() {
+    addMsg('결합 형성 & 사이클로헥센 생성', 'user');
+    showTyping();
+    setTimeout(() => {
+        rmTyping();
+        addMsg('전이 상태를 거쳐 새로운 C-C σ결합 2개가 동시에 형성됩니다.', 'ai');
+        animDAProduct();
+    }, 800);
+}
+
+function runDADemo3() {
+    addMsg('초기 상태로 되돌려줘', 'user');
+    showTyping();
+    setTimeout(() => {
+        rmTyping();
+        addMsg('디엘스-알더 반응 초기 상태로 초기화했습니다.', 'ai');
+        resetDA();
+        saveSession();
+    }, 600);
+}
+
+/* ═══════════════════════════════════════════════════════
+   NATURAL LANGUAGE COMMAND PARSER
+═══════════════════════════════════════════════════════ */
+function handleChatInput(raw) {
+    const text = raw.trim();
+    if (!text) return;
+    const lo = text.toLowerCase();
+
+    // Scenario-specific commands
+    if (activeScenario === 'ringflip') {
+        if (/초기|리셋|reset|되돌/.test(lo)) { runRFDemo3(); return; }
+        if (/axial|equatorial|설명|위치/.test(lo)) { runRFDemo1(); return; }
+        if (/뒤집|flip|애니/.test(lo)) { runRFDemo2(); return; }
+    }
+    if (activeScenario === 'dielsalder') {
+        if (/초기|리셋|reset|되돌/.test(lo)) { runDADemo3(); return; }
+        if (/접근|approach/.test(lo)) { runDADemo1(); return; }
+        if (/결합|생성|product|사이클/.test(lo)) { runDADemo2(); return; }
+    }
+
+    // Carbocation / global commands
+    if (/초기|리셋|reset|되돌|restore/.test(lo)) { runDemo3(); return; }
+    if (/뉴먼|newman/.test(lo)) { runDemo1(); return; }
+    if (/(br|브로민).*(공격|시뮬)|(공격|시뮬).*(br|브로민)/.test(lo)) { runDemo2(); return; }
+
+    // Add preset molecule
+    const molMap = { hbr:/hbr|브로민화수소/, h2o:/h2o|물|water/, ch4:/ch4|메탄|methane/, co2:/co2|이산화탄소/ };
+    for (const [key, re] of Object.entries(molMap)) {
+        if (re.test(lo)) {
+            addMsg(text, 'user');
+            showTyping();
+            setTimeout(() => {
+                rmTyping();
+                const slot = addPreset(key);
+                if (slot) addMsg(`<b>${PRESETS[key].label}</b>를 3D 뷰어에 추가했습니다.`, 'ai');
+                saveSession();
+            }, 800);
+            return;
+        }
+    }
+
+    // Remove
+    if (/삭제|제거|지워|remove/.test(lo)) {
+        if (extraSlots.length > 0) {
+            addMsg(text, 'user');
+            showTyping();
+            setTimeout(() => {
+                rmTyping();
+                removeSlot(extraSlots[extraSlots.length-1].id);
+                addMsg('마지막으로 추가된 분자를 제거했습니다.', 'ai');
+                saveSession();
+            }, 600);
+        } else {
+            addMsg(text, 'user');
+            addMsg('제거할 추가 분자가 없습니다.', 'ai');
+        }
+        return;
+    }
+
+    // Fallback
+    addMsg(text, 'user');
+    showTyping();
+    setTimeout(() => {
+        rmTyping();
+        addMsg('지원되는 명령:<br>• <b>HBr / H₂O / CH₄ / CO₂ 추가</b> — 분자 추가<br>• <b>뉴먼 투영도</b> / <b>Br⁻ 공격</b> / <b>초기 상태로</b> — HBr 첨가 시나리오<br>• <b>고리 뒤집기</b> / <b>axial 설명</b> — 고리 뒤집기 시나리오<br>• <b>접근</b> / <b>결합 형성</b> — 디엘스-알더 시나리오', 'ai');
+    }, 800);
+}
+
+/* ═══════════════════════════════════════════════════════
+   COMMAND PALETTE
+═══════════════════════════════════════════════════════ */
+const palette    = document.getElementById('cmd-palette');
+let   paletteOpen = false;
+
+const MOL_PALETTE_ITEMS = [
+    { key:'hbr', icon:'⊕', text:'HBr 추가',  sub:'브로민화수소' },
+    { key:'h2o', icon:'⊕', text:'H₂O 추가',  sub:'물' },
+    { key:'ch4', icon:'⊕', text:'CH₄ 추가',  sub:'메탄' },
+    { key:'co2', icon:'⊕', text:'CO₂ 추가',  sub:'이산화탄소' },
+];
+
+function buildPaletteSections(filter) {
+    const lo  = filter.toLowerCase();
+    const def = SCENARIO_DEFS[activeScenario];
+    const match = str => !lo || str.toLowerCase().includes(lo);
+    const sections = [];
+
+    const scenarioItems = def.suggestions
+        .filter(s => match(s.label))
+        .map(s => ({
+            icon: '💬', text: s.label, tag: '시나리오',
+            action() { hidePalette(); dispatchScenarioFn(s.fn); }
+        }));
+    if (scenarioItems.length) sections.push({ label:'시나리오 동작', items:scenarioItems });
+
+    const molItems = MOL_PALETTE_ITEMS
+        .filter(m => match(m.text) || match(m.sub))
+        .map(m => ({
+            icon: m.icon, text:`${m.text} — ${m.sub}`, tag:'분자',
+            action() { hidePalette(); doAddPreset(m.key); }
+        }));
+    if (molItems.length) sections.push({ label:'분자 추가', items:molItems });
+
+    const utilItems = [
+        { icon:'⟳', text:'전체 분자 화면에 맞추기', tag:'뷰',
+          action() { hidePalette(); fitCamera(); } }
+    ].filter(u => match(u.text));
+    if (utilItems.length) sections.push({ label:'기타', items:utilItems });
+
+    return sections;
+}
+
+function renderCmdPalette(filter) {
+    palette.innerHTML = '';
+    const sections = buildPaletteSections(filter);
+    const total = sections.reduce((n, s) => n + s.items.length, 0);
+
+    if (total === 0) {
+        const p = document.createElement('div');
+        p.className = 'palette-section-label';
+        p.style.padding = '14px 14px';
+        p.textContent = '일치하는 명령이 없습니다';
+        palette.appendChild(p);
+        return;
+    }
+
+    sections.forEach((sec, si) => {
+        if (si > 0) {
+            const div = document.createElement('div');
+            div.className = 'palette-divider';
+            palette.appendChild(div);
+        }
+        const lbl = document.createElement('div');
+        lbl.className = 'palette-section-label';
+        lbl.textContent = sec.label;
+        palette.appendChild(lbl);
+
+        sec.items.forEach(item => {
+            const btn = document.createElement('button');
+            btn.className = 'palette-item';
+            btn.innerHTML = `<span class="pi-icon">${item.icon}</span>`
+                          + `<span class="pi-text">${item.text}</span>`
+                          + `<span class="pi-tag">${item.tag}</span>`;
+            // mousedown prevents input from losing focus before click fires
+            btn.addEventListener('mousedown', e => { e.preventDefault(); item.action(); });
+            palette.appendChild(btn);
+        });
+    });
+}
+
+function showPalette() {
+    renderCmdPalette(chatInput.value);
+    palette.classList.add('open');
+    paletteOpen = true;
+}
+
+function hidePalette() {
+    palette.classList.remove('open');
+    paletteOpen = false;
+}
+
+function doAddPreset(key) {
+    addMsg(`${PRESETS[key].name} 추가`, 'user');
+    showTyping();
+    setTimeout(() => {
+        rmTyping();
+        const slot = addPreset(key);
+        if (slot) addMsg(`<b>${PRESETS[key].label}</b>를 3D 뷰어에 추가했습니다.`, 'ai');
+        saveSession();
+    }, 700);
+}
+
+/* ═══════════════════════════════════════════════════════
+   EVENT WIRING
+═══════════════════════════════════════════════════════ */
+// Scenario tabs
+document.querySelectorAll('.scenario-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchScenario(tab.dataset.scenario));
+});
+
+document.getElementById('btn-new-session').addEventListener('click', () => {
+    saveSession();
+    newSession();
+    msgContainer.innerHTML = '<div class="message ai">새 세션이 시작되었습니다. 입력창을 클릭하면 가능한 동작 목록이 표시됩니다.</div>';
+    resetMainInstant();
+    extraSlots.forEach(s => scene.remove(s.group));
+    extraSlots.length = 0;
+    allAtomMeshes.length = 0;
+    Object.values(main.atoms).forEach(m => allAtomMeshes.push(m));
+    allAtomMeshes.push(main.brIon);
+    Object.values(ringflip.atoms).forEach(m => allAtomMeshes.push(m));
+    Object.values(dielsalder.atoms).forEach(m => allAtomMeshes.push(m));
+    renderMolTags();
+    controls.target.set(0,0,0);
+    gsap.to(camera.position, { x:6, y:4, z:8, duration:1.0, ease:'power2.inOut', onUpdate:()=>camera.lookAt(0,0,0) });
+    renderSessionList();
+});
+
+document.getElementById('btn-fit-all').addEventListener('click', fitCamera);
+
+// Chat input — palette open/close/filter
+const chatInput = document.getElementById('chat-input');
+
+chatInput.addEventListener('focus', () => showPalette());
+chatInput.addEventListener('input', () => renderCmdPalette(chatInput.value));
+chatInput.addEventListener('blur',  () => setTimeout(hidePalette, 150));
+
+chatInput.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { hidePalette(); chatInput.blur(); return; }
+    if (e.key === 'Enter') {
+        hidePalette();
+        handleChatInput(chatInput.value);
+        chatInput.value = '';
+    }
+});
+
+document.getElementById('btn-send').addEventListener('click', () => {
+    hidePalette();
+    handleChatInput(chatInput.value);
+    chatInput.value = '';
+});
+
+// Close palette when clicking outside chat pane
+document.addEventListener('click', e => {
+    if (!e.target.closest('#chat-pane')) hidePalette();
+});
+
+/* ═══════════════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════════════ */
+init3D();
+newSession('C2 카보양이온 반응');
+renderScenarioSuggestions('carbocation');
+renderCmdPalette('');
+renderSessionList();
+</script>
+</body>
+</html>

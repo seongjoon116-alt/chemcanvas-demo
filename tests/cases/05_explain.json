@@ -1,0 +1,21 @@
+{
+  "name": "EXPLAIN — 현재 씬으로 개념 설명 (새 분자 호출 금지)",
+  "input": "이 분자가 왜 카보양이온이라고 불리는지 설명해줘",
+  "context": {
+    "molecules": ["(R)-3-chloro-1-butene C2 carbocation"],
+    "reactionStep": 0
+  },
+  "expected": {
+    "minStepCount": 1,
+    "contextMoleculeNames": ["(R)-3-chloro-1-butene C2 carbocation"]
+  },
+  "checks": [
+    "scenario_not_null",
+    "step_types_valid",
+    "step_targets_valid",
+    "has_steps",
+    "min_step_count",
+    "chat_message_korean",
+    "no_new_molecules_fetched"
+  ]
+}
