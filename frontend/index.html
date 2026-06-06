@@ -224,6 +224,263 @@
     .log-entry.info  { color: rgba(255,255,255,0.38); }
     .log-entry.warn  { color: #ffd43b; background: rgba(255,212,59,0.06); }
     .log-entry.error { color: #ff6b6b; background: rgba(255,107,107,0.07); }
+
+    /* ── TestPanel ────────────────────────────────────────────── */
+    .hidden { display: none !important; }
+
+    /* 사이드바 테스트 버튼 */
+    #btn-test-panel {
+      margin: 4px 10px 6px;
+      padding: 9px 12px;
+      background: rgba(204,93,232,0.1);
+      border: 1px dashed rgba(204,93,232,0.35);
+      border-radius: 8px; color: rgba(204,93,232,0.75);
+      cursor: pointer; font-size: 0.8rem;
+      text-align: left; display: flex; align-items: center; gap: 7px;
+      transition: all 0.18s; font-family: inherit;
+    }
+    #btn-test-panel:hover { background: rgba(204,93,232,0.18); color: #cc5de8; }
+
+    /* 모달 공통 */
+    .tp-modal-backdrop {
+      position: fixed; inset: 0; z-index: 900;
+      background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .tp-modal {
+      background: #fff; border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+      display: flex; flex-direction: column;
+      max-height: 90vh; overflow: hidden;
+      animation: tp-fadein 0.18s ease;
+    }
+    @keyframes tp-fadein { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:none; } }
+    .tp-modal-header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid #e9ecef;
+      display: flex; align-items: center; gap: 10px;
+      flex-shrink: 0;
+    }
+    .tp-modal-title { font-size: 1rem; font-weight: 600; color: #212529; flex: 1; }
+    .tp-modal-close {
+      background: none; border: none; cursor: pointer;
+      color: #adb5bd; font-size: 1.2rem; line-height: 1; padding: 4px;
+      border-radius: 6px; transition: color 0.15s;
+    }
+    .tp-modal-close:hover { color: #495057; }
+
+    /* 셋업 모달 */
+    #tp-setup-modal .tp-modal { width: 500px; }
+    .tp-modal-toolbar {
+      padding: 10px 20px;
+      display: flex; align-items: center; gap: 8px;
+      border-bottom: 1px solid #f1f3f5; flex-shrink: 0;
+    }
+    .tp-toolbar-btn {
+      padding: 5px 11px; border-radius: 6px; font-size: 0.78rem;
+      border: 1px solid #dee2e6; background: #f8f9fa; color: #495057;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .tp-toolbar-btn:hover { background: #e9ecef; }
+    .tp-modal-body {
+      flex: 1; overflow-y: auto; padding: 12px 20px 16px;
+    }
+    .tp-modal-body::-webkit-scrollbar { width: 4px; }
+    .tp-modal-body::-webkit-scrollbar-thumb { background: #dee2e6; border-radius: 2px; }
+
+    /* 테스트 케이스 목록 */
+    .tp-group { margin-bottom: 14px; }
+    .tp-group-label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.8rem; color: #495057;
+      padding: 5px 2px; cursor: pointer; user-select: none;
+    }
+    .tp-group-label strong { font-size: 0.82rem; color: #212529; }
+    .tp-group-count { font-size: 0.71rem; color: #adb5bd; }
+    .tp-cases { padding-left: 20px; display: flex; flex-direction: column; gap: 2px; }
+    .tp-case-label {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 7px 8px; border-radius: 8px; cursor: pointer;
+      transition: background 0.12s;
+    }
+    .tp-case-label:hover { background: #f8f9fa; }
+    .tp-case-label input[type=checkbox] { margin-top: 2px; flex-shrink: 0; accent-color: #cc5de8; }
+    .tp-case-info { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+    .tp-case-name { font-size: 0.83rem; font-weight: 600; color: #343a40; }
+    .tp-case-atoms {
+      font-size: 0.7rem; background: #e7f5ff; color: #339af0;
+      padding: 1px 6px; border-radius: 10px;
+    }
+    .tp-case-desc { font-size: 0.74rem; color: #adb5bd; }
+
+    .tp-modal-footer {
+      padding: 12px 20px;
+      border-top: 1px solid #e9ecef;
+      display: flex; justify-content: flex-end;
+      flex-shrink: 0;
+    }
+    #tp-run-btn {
+      padding: 11px 22px; border-radius: 9px;
+      background: #cc5de8; color: #fff; border: none;
+      font-size: 0.88rem; font-weight: 600; cursor: pointer;
+      font-family: inherit; transition: background 0.18s;
+    }
+    #tp-run-btn:hover:not(:disabled) { background: #ae3ec9; }
+    #tp-run-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── 뷰어 프로그레스 바 ── */
+    #tp-progress-bar {
+      position: absolute; top: 0; left: 0; right: 0; z-index: 100;
+      padding: 10px 16px 9px;
+      background: rgba(255,255,255,0.9);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(204,93,232,0.2);
+      display: flex; align-items: center; gap: 12px;
+    }
+    #tp-pb-label {
+      font-size: 0.75rem; font-weight: 600; color: #cc5de8;
+      white-space: nowrap; min-width: 44px;
+    }
+    #tp-pb-name {
+      font-size: 0.78rem; color: #495057; flex: 1;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .tp-pb-track {
+      width: 180px; height: 5px; background: #dee2e6;
+      border-radius: 3px; overflow: hidden; flex-shrink: 0;
+    }
+    #tp-pb-fill {
+      height: 100%; background: #cc5de8; border-radius: 3px;
+      transition: width 0.4s ease; width: 0;
+    }
+
+    /* ── 뷰어 평가 바 ── */
+    #tp-rating-bar {
+      position: absolute; bottom: 70px; left: 16px; right: 16px; z-index: 200;
+      background: rgba(255,255,255,0.95);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 14px;
+      padding: 14px 18px 16px;
+      box-shadow: 0 6px 24px rgba(0,0,0,0.1);
+    }
+    .tp-rate-top {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    #tp-rate-title { font-size: 0.88rem; font-weight: 600; color: #212529; }
+    #tp-rate-progress { font-size: 0.74rem; color: #adb5bd; }
+    .tp-rate-question { font-size: 0.83rem; color: #495057; margin-bottom: 10px; }
+    .tp-rate-btns { display: flex; gap: 10px; }
+    #tp-rate-ok {
+      flex: 1; padding: 9px; border-radius: 8px;
+      background: #ebfbee; border: 1px solid #b2f2bb; color: #2f9e44;
+      font-size: 0.84rem; font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: all 0.15s;
+    }
+    #tp-rate-ok:hover:not(:disabled) { background: #d3f9d8; }
+    #tp-rate-fail {
+      flex: 1; padding: 9px; border-radius: 8px;
+      background: #fff5f5; border: 1px solid #ffc9c9; color: #e03131;
+      font-size: 0.84rem; font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: all 0.15s;
+    }
+    #tp-rate-fail:hover:not(:disabled) { background: #ffe3e3; }
+    #tp-rate-ok:disabled, #tp-rate-fail:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* 오류 유형 패널 */
+    #tp-err-panel {
+      margin-top: 12px; padding-top: 12px;
+      border-top: 1px solid #f1f3f5;
+    }
+    .tp-err-panel-title { font-size: 0.78rem; font-weight: 600; color: #495057; margin-bottom: 8px; }
+    #tp-error-list { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 10px; }
+    .tp-err-opt {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 0.78rem; color: #495057; cursor: pointer;
+    }
+    .tp-err-opt input { accent-color: #e03131; }
+    #tp-err-other {
+      width: 100%; padding: 7px 10px; border-radius: 7px;
+      border: 1px solid #ced4da; font-size: 0.8rem;
+      font-family: inherit; margin-bottom: 8px; outline: none;
+    }
+    #tp-err-other:focus { border-color: #339af0; }
+    #tp-err-submit {
+      padding: 8px 18px; border-radius: 7px;
+      background: #495057; color: #fff; border: none;
+      font-size: 0.8rem; font-weight: 600; cursor: pointer; font-family: inherit;
+      transition: background 0.15s; float: right;
+    }
+    #tp-err-submit:hover { background: #343a40; }
+
+    /* ── 요약 모달 ── */
+    #tp-summary-modal .tp-modal { width: 540px; }
+    .tp-sum-stats {
+      display: flex; gap: 12px; margin-bottom: 18px;
+    }
+    .tp-stat {
+      flex: 1; padding: 14px 10px; border-radius: 10px;
+      background: #f8f9fa; border: 1px solid #e9ecef;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+    }
+    .tp-stat-pass { background: #ebfbee; border-color: #b2f2bb; }
+    .tp-stat-fail { background: #fff5f5; border-color: #ffc9c9; }
+    .tp-stat-time { background: #f3f0ff; border-color: #d0bfff; }
+    .tp-stat-num { font-size: 1.5rem; font-weight: 700; color: #212529; }
+    .tp-stat-pass .tp-stat-num  { color: #2f9e44; }
+    .tp-stat-fail .tp-stat-num  { color: #e03131; }
+    .tp-stat-time .tp-stat-num  { color: #7950f2; }
+    .tp-stat-lbl { font-size: 0.72rem; color: #868e96; }
+    .tp-sum-section { margin-bottom: 16px; }
+    .tp-sum-section-title {
+      font-size: 0.75rem; font-weight: 600; color: #868e96;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+    .tp-err-tally {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 5px 8px; border-radius: 6px; font-size: 0.8rem;
+    }
+    .tp-err-tally:hover { background: #f8f9fa; }
+    .tp-err-tally-label { color: #495057; }
+    .tp-err-tally-cnt {
+      font-weight: 600; color: #e03131;
+      background: #fff5f5; padding: 1px 8px; border-radius: 10px; font-size: 0.75rem;
+    }
+    .tp-result-row {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 8px; border-radius: 8px; margin-bottom: 4px;
+    }
+    .tp-result-row.pass { background: #f8fff9; }
+    .tp-result-row.fail { background: #fff8f8; }
+    .tp-result-icon { font-size: 0.9rem; flex-shrink: 0; margin-top: 1px; }
+    .tp-result-body { flex: 1; min-width: 0; }
+    .tp-result-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+    .tp-result-name { font-size: 0.82rem; font-weight: 600; color: #212529; }
+    .tp-result-time { font-size: 0.71rem; color: #adb5bd; white-space: nowrap; }
+    .tp-result-meta { font-size: 0.75rem; color: #868e96; margin-top: 2px; }
+    .tp-result-err  { color: #e03131; }
+    .tp-sum-footer {
+      padding: 12px 20px;
+      border-top: 1px solid #e9ecef;
+      display: flex; gap: 10px; justify-content: flex-end;
+      flex-shrink: 0;
+    }
+    #tp-rerun-btn {
+      padding: 10px 18px; border-radius: 8px;
+      background: #f8f9fa; border: 1px solid #dee2e6;
+      color: #495057; font-size: 0.84rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    #tp-rerun-btn:hover { background: #e9ecef; }
+    #tp-export-btn {
+      padding: 10px 18px; border-radius: 8px;
+      background: #cc5de8; border: none;
+      color: #fff; font-size: 0.84rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: background 0.18s;
+    }
+    #tp-export-btn:hover { background: #ae3ec9; }
   </style>
 </head>
 <body>
@@ -236,6 +493,7 @@
       <span class="brand-name">ChemCanvas AI</span>
     </div>
     <button id="btn-new-session">✏ 새 세션 시작</button>
+    <button id="btn-test-panel">🧪 테스트 시퀀스</button>
     <div id="session-list">
       <div class="session-info">
         PubChem MCP 기반<br>
@@ -258,6 +516,34 @@
   <!-- 3D Viewer -->
   <div id="viewer-pane">
     <canvas id="canvas-3d"></canvas>
+
+    <!-- TestPanel: 진행 상태 바 (뷰어 상단) -->
+    <div id="tp-progress-bar" class="hidden">
+      <span id="tp-pb-label">0 / 0</span>
+      <span id="tp-pb-name"></span>
+      <div class="tp-pb-track"><div id="tp-pb-fill"></div></div>
+    </div>
+
+    <!-- TestPanel: 평가 바 (뷰어 하단, legend 위) -->
+    <div id="tp-rating-bar" class="hidden">
+      <div class="tp-rate-top">
+        <span id="tp-rate-title">테스트 이름</span>
+        <span id="tp-rate-progress">1 / 12</span>
+      </div>
+      <div class="tp-rate-question">3D 렌더링이 올바르게 되었나요?</div>
+      <div class="tp-rate-btns">
+        <button id="tp-rate-ok">✅ 정상</button>
+        <button id="tp-rate-fail">❌ 오류 있음</button>
+      </div>
+      <!-- 오류 유형 선택 패널 (오류 있음 클릭 시 표시) -->
+      <div id="tp-err-panel" class="hidden">
+        <div class="tp-err-panel-title">어떤 오류인가요? (복수 선택 가능)</div>
+        <div id="tp-error-list"></div>
+        <input type="text" id="tp-err-other" class="hidden" placeholder="직접 입력...">
+        <button id="tp-err-submit">확인</button>
+        <div style="clear:both"></div>
+      </div>
+    </div>
 
     <div id="atom-tooltip" class="glass"></div>
 
@@ -293,6 +579,45 @@
   </div>
 
 </div>
+
+<!-- TestPanel: 셋업 모달 -->
+<div id="tp-setup-modal" class="tp-modal-backdrop hidden">
+  <div id="tp-setup-backdrop" style="position:absolute;inset:0;"></div>
+  <div class="tp-modal" style="position:relative;z-index:1;">
+    <div class="tp-modal-header">
+      <span class="tp-modal-title">🧪 테스트 시퀀스 설정</span>
+      <button id="tp-setup-close" class="tp-modal-close">✕</button>
+    </div>
+    <div class="tp-modal-toolbar">
+      <button class="tp-toolbar-btn" id="tp-select-all">전체 선택</button>
+      <button class="tp-toolbar-btn" id="tp-deselect-all">전체 해제</button>
+      <span style="font-size:0.75rem;color:#adb5bd;margin-left:4px;">실행할 테스트를 선택하세요</span>
+    </div>
+    <div class="tp-modal-body">
+      <div id="tp-case-list"></div>
+    </div>
+    <div class="tp-modal-footer">
+      <button id="tp-run-btn" disabled>테스트를 선택하세요</button>
+    </div>
+  </div>
+</div>
+
+<!-- TestPanel: 요약 모달 -->
+<div id="tp-summary-modal" class="tp-modal-backdrop hidden">
+  <div id="tp-summary-backdrop" style="position:absolute;inset:0;"></div>
+  <div class="tp-modal" style="position:relative;z-index:1;">
+    <div class="tp-modal-header">
+      <span class="tp-modal-title">📊 테스트 결과 요약</span>
+      <button id="tp-summary-close" class="tp-modal-close">✕</button>
+    </div>
+    <div class="tp-modal-body" id="tp-summary-content"></div>
+    <div class="tp-sum-footer">
+      <button id="tp-rerun-btn">↩ 다시 실행</button>
+      <button id="tp-export-btn">⬇ JSON 내보내기</button>
+    </div>
+  </div>
+</div>
+
 <script type="module" src="/src/App.js"></script>
 </body>
 </html>

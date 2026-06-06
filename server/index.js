@@ -3,6 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import { query } from './orchestrator.js';
 import { getInitialScenario, getInitialChatMessage } from './mocks/pubchem.js';
+import { createQueryLogger } from './queryLogger.js';
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -93,8 +94,8 @@ app.post('/api/query', async (req, res) => {
   if (!userMessage || !sessionId) {
     return res.status(400).json({ error: 'userMessage and sessionId are required' });
   }
-  if (!process.env.GEMINI_API_KEY) {
-    return res.status(500).json({ error: 'GEMINI_API_KEY not configured.' });
+  if (!process.env.DEEPSEEK_API_KEY) {
+    return res.status(500).json({ error: 'DEEPSEEK_API_KEY not configured.' });
   }
 
   res.setHeader('Content-Type', 'text/event-stream');
@@ -115,10 +116,18 @@ app.post('/api/query', async (req, res) => {
     try { res.write(': ping\n\n'); } catch {}
   }, HEARTBEAT_MS);
 
+  const logger = createQueryLogger(sessionId, userMessage);
+
   const runQuery = () => query(
     userMessage, sessionId, currentMoleculeContext,
-    (event, data) => send('progress', { event, ...data }),
+    (event, data) => {
+      send('progress', { event, ...data });
+      logger.onProgress(event, data);
+    },
   );
+
+  let finalResult = null;
+  let finalError  = null;
 
   try {
     const result = await runQuery();
@@ -127,8 +136,10 @@ app.post('/api/query', async (req, res) => {
       console.warn('scenario null — 1회 재시도');
       await new Promise(r => setTimeout(r, 1000));
       const retry = await runQuery();
+      finalResult = retry;
       send('done', retry);
     } else {
+      finalResult = result;
       send('done', result);
     }
   } catch (err) {
@@ -136,12 +147,15 @@ app.post('/api/query', async (req, res) => {
     await new Promise(r => setTimeout(r, 2000));
     try {
       const result = await runQuery();
+      finalResult = result;
       send('done', result);
     } catch (err2) {
+      finalError = err2;
       console.error('Query error (2차):', err2.message);
       send('error', { message: '분석 중 오류가 발생했습니다. 다시 시도해주세요.' });
     }
   } finally {
+    logger.finish(finalResult, finalError);
     clearInterval(heartbeat);
     res.end();
   }
@@ -149,9 +163,9 @@ app.post('/api/query', async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`ChemCanvas server running on port ${PORT}`);
-  if (!process.env.GEMINI_API_KEY) {
-    console.warn('WARNING: GEMINI_API_KEY not set.');
+  if (!process.env.DEEPSEEK_API_KEY) {
+    console.warn('WARNING: DEEPSEEK_API_KEY not set.');
   } else {
-    console.log(`Using model: ${process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-14'}`);
+    console.log(`Using model: ${process.env.DEEPSEEK_MODEL || 'deepseek-v4-0424'}`);
   }
 });

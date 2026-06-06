@@ -3,6 +3,7 @@ import { ChatPanel }     from './chat/ChatPanel.js';
 import { initScene, sendQueryStream } from './api/client.js';
 import { colorHex, ELEMENT_NAMES } from './scene/AtomFactory.js';
 import { buildInitialScenario } from '../../shared/initialMolecule.js';
+import { TestPanel } from './test/TestPanel.js';
 
 // 꼬리 답변(step.description) 사이에 사람이 읽을 시간 보장 — 한국어 평균 ~11자/초.
 // playStep이 step.duration만큼 기다린 뒤, 모자란 만큼 추가 대기.
@@ -226,6 +227,8 @@ async function boot() {
   }
 
   connectLogStream();
+
+  new TestPanel(handleSend);
 
   document.getElementById('btn-new-session')?.addEventListener('click', () => {
     sessionStorage.removeItem('chemcanvas_session');

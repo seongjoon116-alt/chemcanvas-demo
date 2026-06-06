@@ -1,65 +1,62 @@
 # ChemCanvas AI — 프로젝트 현재 상태 (메모리)
 
-> 최종 업데이트: 2026-05-25 (시니어 풀스택 코드 리뷰 반영 + 테스트 인프라 개편 완료)
+> 최종 업데이트: 2026-06-06 (LLM Gemini→DeepSeek V4 마이그레이션 + 모니터링 로거 + UI 테스트 패널)
 
 ---
 
-## 🆕 최근 변경 요약 (2026-05-25 코드 리뷰 반영 라운드)
+## 🆕 최근 변경 요약 (2026-06-06)
 
-### 적용된 비-배포 / 비-Phase4 개선 (사용자 지시: 보안/배포/유저 rate-limit 제외)
+### A. LLM Gemini 2.5 Flash → DeepSeek V4 마이그레이션
 
-**서버:**
-- `server/orchestrator.js`
-  - `repairJson()` 단일패스 스캐너 — 블록 주석 EOF 안전, hex 검증, 문자열 내부 콤마 보존
-  - **신규 `truncateAndClose()` fallback** — LLM 출력이 max token에서 잘려도 부분 시나리오 복구
-  - `sessions` Map → `QuickLRU` (maxSize, maxAge)로 메모리 누수 차단
-  - `pairAwareTrim` — tool_use/tool_response 쌍이 깨지지 않게 contents 슬라이싱
-  - `repairModel` — `tools: []` 별도 인스턴스로 수정 라운드 중 tool 재호출 차단
-  - COMPARE H-stripping 임계값 12 → **10원자**로 더 보수적
-- `server/pubchem.js` — `QuickLRU` 캐시(cidCache, molCache) + `PQueue`로 API 동시성 제한
-- `server/validator.js`
-  - position target의 `atomId` 누락 검증 추가
-  - **transitive overlap 보정** — 분자[2]가 분자[1]과만 겹쳐도 보정 (기존: 분자[0] 기준만)
-  - 헬퍼/상수 export (`getMolCenter`, `vecDist`, `translateMolecule`, `VALIDATOR_CONSTANTS`)
-- `server/index.js`
-  - SSE heartbeat (25s) — 프록시 idle timeout 방지
-  - `broadcastLog` 클라이언트별 try/catch
-  - 1차/재시도 try-finally로 heartbeat 안전 정리
-  - 초기 chat message는 `mocks/pubchem.js → getInitialChatMessage()`로 추상화
-- `server/mocks/pubchem.js` — `shared/initialMolecule.js` 사용, cyclohexane 좌표 충돌 수정
+- `server/package.json`: `@google/generative-ai` 제거, `openai ^4.82.0` 추가
+- `server/.env.example`: `GEMINI_API_KEY/GEMINI_MODEL` → `DEEPSEEK_API_KEY/DEEPSEEK_MODEL`
+- `server/index.js`: 환경변수 참조명 변경 (2곳)
+- `server/orchestrator.js`: **완전 재작성** (Google SDK → OpenAI SDK)
+  - `import OpenAI from 'openai'`, `DEFAULT_MODEL = 'deepseek-v4-0424'`
+  - Tool 선언 형식: `functionDeclarations[]` → `tools[].function` (`type:'function'`)
+  - 메시지 이력: `contents[]{parts[]}` → `messages[]{role, content}` (OpenAI 형식)
+  - 툴 응답: Google `functionResponse` in user parts → `{role:'tool', tool_call_id, content}`
+  - 수정 라운드: `repairModel`(별도 인스턴스) 제거 → `tools` 파라미터 생략으로 대체
+  - `pairAwareTrim`: OpenAI 형식에서 trim 시작점이 반드시 `user` role이어야 함 (orphaned tool 방지)
+  - 세션 저장: `session.contents = pairAwareTrim(messages.filter(m => m.role !== 'system'))`
+  - `repairJson()`, `truncateAndClose()`, `parseResponse()`, `validateAndFix` — 변경 없음
 
-**프론트엔드:**
-- `frontend/src/scene/AtomFactory.js` — geometry/material 캐싱 (GPU 메모리 ↓), `colorHex()` 단일 진실원
-- `frontend/src/scene/SceneManager.js`
-  - `_disposeObject()` — Three.js geometry/material 적절히 dispose (메모리 누수 제거)
-  - 모든 결합을 dynBonds에 등록 — 애니메이션 중 결합이 원자 따라감
-  - `#fitCamera()` 가로/세로 FOV + atom radius 고려 (좁은 화면 cropping 방지)
-  - `visibilitychange` 시 렌더 일시정지 (CPU/GPU 절약)
-- `frontend/src/App.js`
-  - `shared/initialMolecule.js`, `AtomFactory.colorHex` 사용으로 색상 중복 제거
-  - `molPendingSteps` 배열로 병렬 분자 호출 CoT step 정확히 매핑
-- `frontend/src/api/client.js` — SSE JSON 파싱 실패 시 console.warn
+### B. 쿼리 모니터링 로거 (server/queryLogger.js 신규)
 
-**공유:**
-- 신규 `shared/initialMolecule.js` — `INITIAL_CARBOCATION`, `buildInitialScenario()` 단일 진실원
-- `frontend/vite.config.js` — `fs.allow: ['..']`로 워크스페이스 루트 import 허용
+- **`server/queryLogger.js`** — 요청별 JSONL 로거
+  - `createQueryLogger(sessionId, userMessage)` → `{onProgress, finish}` 반환
+  - `onProgress(event, data)`: tool_call/tool_result/classify 이벤트 경량 요약 수집
+  - `finish(result, err)`: `server/logs/YYYY-MM-DD.jsonl` 에 1줄 기록 (날짜 자동 로테이션)
+  - 기록 항목: ts, sessionId, query, act, events[], scenario{title,moleculeCount,stepCount}, chatMessage(300자), durationMs, error
+- **`server/logs/.gitkeep`** — logs 디렉터리 git 추적용 빈 파일
+- `server/index.js`: `createQueryLogger` import + `/api/query` 핸들러에 통합
 
-**테스트 인프라 전면 개편:**
-- `tests/run.js` — `--unit` / `--integration` / `--all` 플래그, 통합 케이스 1회 자동 retry (LLM 비결정성 흡수)
-- **신규 `tests/unit/repairJson.test.js`** (28 tests) — `repairJson`, `truncateAndClose`, `parseResponse` 단위 검증
-- **신규 `tests/unit/validator.test.js`** (20 tests) — atomId/bond/transitive overlap 회귀 방지
-- **신규 `tests/cases/04_manipulate.json`** — 카메라 조작 (새 분자 호출 금지 검증)
-- **신규 `tests/cases/05_explain.json`** — 개념 설명 (새 분자 호출 금지 검증)
-- `tests/validators.js` — `no_new_molecules_fetched` 체크 신규 추가
+### C. UI 레벨 테스트 시퀀스 패널 (신규)
 
-**테스트 결과 (직접 실행 검증):**
-- 단위 테스트: **48 / 48 PASS** (`node tests/run.js --unit`)
-- 통합 테스트: **5 / 5 PASS** (`node tests/run.js --integration`, 서버 직접 부팅)
-  - 아스피린 21원자: 17.4s
-  - 에틸렌 + HBr: 45.8s
-  - 아스피린 vs 이부프로펜: 51.9s
-  - MANIPULATE (카메라): 4.2s
-  - EXPLAIN (설명): 12.8s (1차 변동 → retry로 복구)
+- **`frontend/src/test/testCases.js`**
+  - 12개 테스트 케이스 (소분자 3, 중분자 3, 대분자 2, 비교 모드 2, 화학반응 2)
+  - 9개 오류 유형 (no_hydrogen, edge_mismatch, node_too_large, compare_one_mol, no_animation, wrong_structure, camera_bad, overlap, other)
+  - `GROUPS` 배열로 렌더링 순서 고정
+- **`frontend/src/test/TestPanel.js`**
+  - `new TestPanel(handleSend)` — 생성자에서 DOM 이벤트 바인딩
+  - 셋업 모달: 테스트 케이스 그룹/개별 선택, 전체 선택/해제
+  - 실행 루프: `await runQuery(query)` → 평가 바 → 다음 케이스
+  - 평가 바: "정상 / 오류 있음" + 오류 유형 체크박스 + 기타 텍스트
+  - 요약 모달: 통과율 통계, 오류 유형 집계, 개별 결과 목록, JSON 내보내기
+- `frontend/src/App.js`: `import { TestPanel }`, `new TestPanel(handleSend)` in `boot()`
+- `frontend/index.html`: TestPanel HTML/CSS 전체 추가
+  - 사이드바 "🧪 테스트 시퀀스" 버튼 (`#btn-test-panel`)
+  - 뷰어 상단 프로그레스바 (`#tp-progress-bar`, `#tp-pb-fill`)
+  - 뷰어 하단 평가 바 (`#tp-rating-bar`)
+  - 셋업 모달 (`#tp-setup-modal`), 요약 모달 (`#tp-summary-modal`)
+
+### 이전 (2026-05-25) 코드 리뷰 반영 내역 — 변경 없음 (여전히 적용됨)
+
+- `server/orchestrator.js`: `repairJson` 단일패스, `truncateAndClose` fallback, `QuickLRU` 세션
+- `server/pubchem.js`: `QuickLRU` 캐시 + `PQueue` 동시성 제한
+- `server/validator.js`: transitive overlap 보정, atomId 누락 검증
+- `frontend/src/scene/`: `_disposeObject`, `dynBonds` 전체 등록, `#fitCamera` FOV 보정
+- `tests/`: unit 48 + integration 5 = 53 PASS
 
 ---
 
@@ -113,10 +110,14 @@ better_pubchem/
 │       │                     #   - updateLegend(scenario): 씬의 원소만 legend 렌더링
 │       │                     #   - connectLogStream(): EventSource('/api/logs')
 │       │                     #   - handleSend: sendQueryStream + CoT 컨트롤러 사용
+│       │                     #   - new TestPanel(handleSend): UI 테스트 시퀀스 패널
 │       ├── api/client.js     # sendQueryStream(msg, sid, ctx, onEvent): SSE 파서
 │       │                     # initScene(): GET /api/init
 │       ├── chat/ChatPanel.js # showCoT() → {addStep, setStep, setTitle, done}
 │       │                     # removeCoT(): 에러 시 CoT 패널 강제 제거
+│       ├── test/
+│       │   ├── testCases.js  # 12개 테스트 케이스 정의 + 9개 오류 유형 + GROUPS
+│       │   └── TestPanel.js  # UI 테스트 시퀀스 실행기 (셋업→실행→평가→요약)
 │       └── scene/
 │           ├── SceneManager.js  # Three.js 씬 구성 + GSAP 애니메이션
 │           ├── AtomFactory.js   # 원소별 메시 (CPK 색상, ATOM_RADII, ATOM_COLORS)
@@ -125,10 +126,14 @@ better_pubchem/
 │   ├── index.js              # Express (port 3001)
 │   │                         #   - console.log/warn/error 오버라이드 → SSE 브로드캐스트
 │   │                         #   - GET /api/logs: SSE 로그 스트림
-│   │                         #   - POST /api/query: SSE 스트리밍 응답
-│   ├── orchestrator.js       # Gemini 2.5 Flash API + tool_use 루프 (max 5 rounds)
-│   │                         #   - query(msg, sid, ctx, onProgress): onProgress 콜백 추가
+│   │                         #   - POST /api/query: SSE 스트리밍 응답 + queryLogger
+│   ├── orchestrator.js       # DeepSeek V4 API + tool_use 루프 (OpenAI SDK, max 5 rounds)
+│   │                         #   - query(msg, sid, ctx, onProgress): onProgress 콜백
 │   │                         #   - onProgress events: tool_call / tool_result / generating
+│   │                         #   - pairAwareTrim: OpenAI format, trim start = user role
+│   ├── queryLogger.js        # JSONL 모니터링 로거 (server/logs/YYYY-MM-DD.jsonl)
+│   │                         #   - createQueryLogger(sid, msg) → {onProgress, finish}
+│   ├── logs/.gitkeep         # logs 디렉터리 git 추적용
 │   ├── pubchem.js            # PubChem REST API 실제 연동
 │   │                         #   - nameToCid(name): 이름 → CID
 │   │                         #   - fetchSdf(cid): 3D SDF (404이면 2D fallback)
@@ -137,8 +142,8 @@ better_pubchem/
 │   │                         #   - CID 캐시 + 분자 캐시 (Map)
 │   ├── mocks/pubchem.js      # 하드코딩 분자 5개 + getInitialScenario() (유지)
 │   │                         #   carbocation, HBr, cyclohexane, butadiene, ethylene
-│   ├── package.json          # @google/generative-ai ^0.21.0, express, cors, dotenv
-│   ├── .env                  # GEMINI_API_KEY, GEMINI_MODEL, PORT, PUBCHEM_API_KEY
+│   ├── package.json          # openai ^4.82.0, express, cors, dotenv, quick-lru, p-queue
+│   ├── .env                  # DEEPSEEK_API_KEY, DEEPSEEK_MODEL, PORT, PUBCHEM_API_KEY
 │   ├── .env.example          # 동일 키 + 주석
 │   └── prompts/system.txt    # LLM 시스템 프롬프트 (AnimationScenario 스키마 명시)
 ```
@@ -151,11 +156,11 @@ better_pubchem/
 |------|------|
 | Frontend | Vanilla JS (ES modules), Three.js 0.160, GSAP 3.12, Vite 5 |
 | Backend | Node.js (ES modules), Express 4, PM2 |
-| AI | Google Gemini 2.5 Flash (`gemini-2.5-flash`) |
+| AI | DeepSeek V4 (`deepseek-v4-0424`, OpenAI-compatible API) |
 | 분자 데이터 | PubChem REST API (SDF V2000 파싱, 3D→2D fallback) |
 | 배포 | Oracle Cloud AMD VM, Ubuntu 22.04, nginx |
 
-> ⚠️ **LLM**: 원래 설계는 Anthropic Claude였으나 현재 **Google Gemini** 사용 (`@google/generative-ai`)
+> ⚠️ **LLM**: 원래 설계는 Anthropic Claude → Google Gemini → 현재 **DeepSeek V4** (`openai` SDK, `baseURL: https://api.deepseek.com/v1`)
 
 ---
 
@@ -248,11 +253,11 @@ event: error     data: { message }
 ## 환경 변수 (server/.env)
 
 ```
-GEMINI_API_KEY=   # https://aistudio.google.com/app/apikey
-GEMINI_MODEL=gemini-2.5-flash
+DEEPSEEK_API_KEY=  # https://platform.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-0424
 PORT=3001
-PUBCHEM_API_KEY=  # 선택. 없으면 5req/s, 있으면 10req/s
-                  # https://pubchem.ncbi.nlm.nih.gov/docs/programmatic-access
+PUBCHEM_API_KEY=   # 선택. 없으면 5req/s, 있으면 10req/s
+                   # https://pubchem.ncbi.nlm.nih.gov/docs/programmatic-access
 ```
 
 - UTF-8 BOM 없이 저장 필수 (run.ps1이 자동 처리)
@@ -283,6 +288,9 @@ PUBCHEM_API_KEY=  # 선택. 없으면 5req/s, 있으면 10req/s
 - [ ] PubChem에서 가져온 대형 분자(수십 원자)의 H 원자를 숨기는 "중원자만 표시" 옵션 미구현
 - [ ] `currentMoleculeContext`가 분자명 배열만 전달됨 — 실제 원자 데이터 전달로 개선 가능
 - [ ] deploy.ps1에 server/pubchem.js 업로드 누락 가능성 확인 필요
+- [ ] DeepSeek API 잔액 충전 필요 (platform.deepseek.com) — 현재 402 오류 발생 중
+- [ ] server/logs/ 디렉터리를 .gitignore에 추가 (JSONL 로그 파일 git 추적 방지)
+- [x] UI 레벨 테스트 시퀀스 패널 구현 (TestPanel.js, testCases.js)
 
 ---
 

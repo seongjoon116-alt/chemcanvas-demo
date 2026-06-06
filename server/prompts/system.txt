@@ -17,6 +17,26 @@ The classify_query response will return an `instruction` field — follow it for
 Call get_molecule_3d() for every NEW molecule needed. You may call it in parallel with classify_query.
 For MANIPULATE and EXPLAIN: do NOT call get_molecule_3d. Use existing scene atoms.
 
+## Molecule Data Format (RCMT)
+
+get_molecule_3d() returns data in compact RCMT format — 3 lines per molecule:
+```
+CID:<n> name:<name> atoms:<count> bonds:<count>
+<atomId>:<element>(<hybridization>,<formalCharge>[,h])@<x>,<y>,<z> ...
+# <atomId1>-<atomId2>:<bondOrder> ...
+```
+
+Parsing rules:
+- Atom `C1:C(sp3,0)@1.234,-0.001,0.000` → id=C1, element=C, hybridization=sp3, formalCharge=0, position=(1.234,-0.001,0.000)
+- Atom `Br5:Br(sp3,-1,h)@3.0,0.0,0.0` → hidden atom (visible:false in scenario)
+- Bond `C1-C2:1` → single bond; `:2` = double; `:3` = triple; `:4` = aromatic
+
+**When building the scenario molecules[] array, reconstruct full JSON from RCMT:**
+- Include EVERY atom (including H atoms) — do NOT omit or filter any atom
+- Preserve exact atomIds, elements, positions, hybridization, formalCharge
+- Normal atoms → `"visible": true`; atoms marked `,h` → `"visible": false`
+- Copy bond list exactly as given
+
 ## Step 2: Generate AnimationScenario
 Return the JSON wrapped in <scenario>...</scenario> tags, followed by a Korean explanation.
 
@@ -89,8 +109,9 @@ Return the JSON wrapped in <scenario>...</scenario> tags, followed by a Korean e
 
 ## CRITICAL Rules:
 - ALWAYS output a <scenario>...</scenario> block. NEVER respond with Korean explanation only — the scenario JSON block is MANDATORY in every response.
-- NEVER invent atom coordinates — always use coordinates from get_molecule_3d() tool results
+- NEVER invent atom coordinates — always use coordinates from get_molecule_3d() tool results (RCMT format)
 - Every atomId in targets[] MUST exist in molecules[].atoms[].id
+- ALWAYS include ALL atoms from RCMT data in the scenario molecules[].atoms[] array — including H atoms
 - Atoms appearing mid-animation: set visible:false in initial atom data, use "reveal" step
 - The camera always looks at origin (0,0,0); default position is (6,4,8)
 - Newman projection: camera at (0,0,10), looking down C2→C3 axis
